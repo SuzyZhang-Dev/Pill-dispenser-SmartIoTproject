@@ -5,4 +5,10 @@
 #ifndef PILLDISPENSER_MOTOR_H
 #define PILLDISPENSER_MOTOR_H
 
+#define STEP_DELAY_MS 5
+
+void set_motor_pins();
+void motor_move_one_step(int direction);
+void motor_stop();
+
 #endif //PILLDISPENSER_MOTOR_H

@@ -29,8 +29,8 @@ set(SOURCE_FILES
     src/drivers/lora.c
     src/drivers/eeprom.c
     src/drivers/led.c
-    src/logic/statemachine.c
-    src/logic/statemachine.h
+        src/logic/dispenser.c
+        src/logic/dispenser.h
 )
 
 # Tell CMake where to find the executable source file
