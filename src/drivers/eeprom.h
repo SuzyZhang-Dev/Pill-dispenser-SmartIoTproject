@@ -1,0 +1,8 @@
+//
+// Created by 张悦 on 1.12.2025.
+//
+
+#ifndef PILLDISPENSER_EEPROM_H
+#define PILLDISPENSER_EEPROM_H
+
+#endif //PILLDISPENSER_EEPROM_H

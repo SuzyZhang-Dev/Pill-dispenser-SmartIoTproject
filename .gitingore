@@ -1,0 +1,22 @@
+# CMake build artifacts
+cmake-build-debug/
+build/
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+!pico_sdk_import.cmake
+
+# CLion specific settings (optional, recommended to ignore)
+.idea/
+
+# Compiled Object files
+*.o
+*.obj
+
+# Pico/Hardware executables
+*.elf
+*.bin
+*.hex
+*.uf2
+*.map
+*.dis
