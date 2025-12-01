@@ -10,20 +10,17 @@
 
 int main() {
     stdio_init_all();
-    // Test motor functionality
-    int n=8;
     set_motor_pins();
-    printf("Motor System Initialized.\n");
+    sensor_init();
 
-    while (n==9) {
-        int steps_to_move = 512;
-        printf("Rotating...\n");
-        for(int i = 0; i < steps_to_move; i++) {
-            motor_move_one_step(1);
-            sleep_ms(2);
+    dispenser_calibration();
+
+    while (1) {
+        bool test = do_dispense_single_round(1);
+        if (test) {
+            printf("Pill dispensed successfully.\n");
+        } else {
+            printf("Pill dispensing failed.\n");
         }
-        printf("Done. Stopping.\n");
-        motor_stop();
-        sleep_ms(2000);
     }
 }

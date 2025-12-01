@@ -12,15 +12,16 @@
 #include "../drivers/sensor.h"
 
 bool is_calibrated=false;
-float step_per_revolution=4096;
+float step_per_revolution=4096; //default value
+//static volatile uint64_t last_interrupt_time_ms = 0;
 
-// feature: motor and sensor control
-uint run_until_falling_edge(int direction) {
+// feature:
+uint dispenser_align_with_opening(int direction) {
     int steps_taken=0;
     int previous_state;
-    int current_state=opto_fork_sensor_read();
+    int current_state = opto_fork_sensor_read();
     do {
-        previous_state=current_state;
+        previous_state = current_state;
         motor_move_one_step(direction);
         steps_taken++;
         current_state=opto_fork_sensor_read();
@@ -30,42 +31,49 @@ uint run_until_falling_edge(int direction) {
 }
 
 void dispenser_calibration() {
-    printf("Starting calibration\n");
-    uint step_count_per_revolution[3]; //count 3 laps and do average
+    printf("Welcome to Daily Medicine:). Start calibration...\n");
     float sum_steps=0;
     int direction = 1; //clock-wise
 
-    run_until_falling_edge(direction);
-    printf("Start point found. Continuing calibration...\n");
-
+    dispenser_align_with_opening(direction);
+    //printf("Start point found. Continuing calibration...\n");
     for (int i=0;i<3;i++) {
-        printf("Starting round %d\n",i+1);
-        uint steps_this_rev=run_until_falling_edge(direction);
-        step_count_per_revolution[i]=steps_this_rev;
+        uint steps_this_rev = dispenser_align_with_opening(direction);
         sum_steps+=steps_this_rev;
-        printf("Round %d completed, steps: %d.\n",i+1,steps_this_rev);
     }
-
-    step_per_revolution=sum_steps/3.0f;
+    // update global variables
+    // after done eeprom, store this global variable to eeprom.
+    // so that don't need to calibrate again after power off.
+    step_per_revolution = sum_steps / 3.0f;
     is_calibrated = true;
-    printf("Calibrated\n");
-    printf("Steps of each round: %d,%d,%d.\n",step_count_per_revolution[0],
-        step_count_per_revolution[1],step_count_per_revolution[2]);
-    printf("Steps per round is %.2f.\n",step_per_revolution);
+    printf("Calibrated. Steps per round is %.2f.\n",step_per_revolution);
 }
 
-void dispenser_run_on_days(int days) {
-    if (!is_calibrated) {
-        printf("No calibration found\n");
-        return;
+bool is_pill_dropped() {
+    uint64_t start_time = time_us_64() / 1000;
+    while (time_us_64()/1000 - start_time < PILL_FALL_TIMEOUT_MS) {
+        if (sensor_get_pill_detected() ) {
+            return true;
+        }
+        sleep_ms(1);
     }
+    return false;
+}
 
-    float total_steps=days/8.0f * step_per_revolution;
+bool do_dispense_single_round(int rounds) {
+    if (!is_calibrated) return false;
+
+    sensor_reset_pill_detected();
+    float total_steps= rounds * step_per_revolution /8.0f;
 
     for (long i=0;i<total_steps;i++) {
         motor_move_one_step(1);
     }
+    motor_stop();
 
-    set_motor_pins((bool[4]){0,0,0,0});
-    printf("[%d]Days Pills Completed.\n",days);
+    if (is_pill_dropped()) {
+        return true;
+    }
+    return false;
 }
+

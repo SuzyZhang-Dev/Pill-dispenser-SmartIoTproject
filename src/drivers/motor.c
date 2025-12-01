@@ -31,7 +31,7 @@ void set_motor_pins() {
 
 void motor_move_one_step(int direction) {
     static int step_index = 0;
-    step_index=(step_index+direction+8)%8;
+    step_index=(step_index+direction + 8) % 8;
     for(int i=0;i<4;i++) {
         gpio_put(motor_pins[i],half_step_sequence[step_index][i]);
     }

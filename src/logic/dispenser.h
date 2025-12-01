@@ -6,9 +6,9 @@
 #define PILLDISPENSER_STATEMACHINE_H
 #include "pico/types.h"
 
-uint run_until_falling_edge(int direction);
+uint dispenser_align_with_opening(int direction);
 void dispenser_calibration();
-void dispenser_run_on_days(int days);
-
+bool is_pill_dropped();
+bool do_dispense_single_round(int rounds) ;
 
 #endif //PILLDISPENSER_STATEMACHINE_H
