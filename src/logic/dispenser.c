@@ -35,7 +35,7 @@ void dispenser_init() {
         sprintf(log_message, "System Boot: Loaded previous settings. Calibrated:%d, Dispensed:%d/%d",
                 is_calibrated, pill_dispensed_count, pill_treatment_period);
         log_write_message(log_message);
-        return;
+
     }else {
         is_calibrated = false;
         step_per_revolution = 4096.0f;
@@ -62,6 +62,8 @@ void dispenser_calibration() {
     pill_dispensed_count = 0;
 
     DispenserState calibrated_state;
+    memset(&calibrated_state, 0, sizeof(DispenserState));
+
     calibrated_state.step_per_revolution = step_per_revolution;
     calibrated_state.is_calibrated = is_calibrated;
     calibrated_state.pill_dispensed_count = 0;
@@ -104,6 +106,7 @@ bool do_dispense_single_round() {
         }
 
         DispenserState current_state;
+        memset(&current_state, 0, sizeof(DispenserState));
         current_state.step_per_revolution = step_per_revolution;
         current_state.is_calibrated = is_calibrated;
         current_state.pill_dispensed_count = pill_dispensed_count;

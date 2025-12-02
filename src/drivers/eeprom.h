@@ -12,7 +12,7 @@
 #define EEPROM_ADDR 0x50 //because A0,A1 are grounded
 #define MAX_EEPROM_ADDR (32*1024) //32768 bytes
 
-#define STORE_DISPENSER_ADDR (MAX_EEPROM_ADDR - sizeof(DispenserState))
+#define STORE_DISPENSER_ADDR (MAX_EEPROM_ADDR - 64)
 #define LOG_BASE_ADDRESS 0
 #define LOG_SIZE 4096 //bytes
 #define LOG_ENTRY_SIZE 64 //bytes

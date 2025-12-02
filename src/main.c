@@ -18,12 +18,22 @@ char get_user_command() {
 
 int main() {
     stdio_init_all();
+    sleep_ms(3000);
+
     set_motor_pins();
     sensor_init();
     dispenser_init();
 
     while (1) {
         char cmd = get_user_command();
+        if (cmd == 'i') {
+            if (is_calibrated_dispenser()) {
+                printf("Status: Calibrated. Ready.\n");
+            } else {
+                printf("Status: NOT Calibrated.\n");
+            }
+        }
+
         if (cmd =='c') {
             dispenser_calibration() ;
         }
