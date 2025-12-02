@@ -1,7 +1,3 @@
-//
-// Created by 张悦 on 1.12.2025.
-//
-
 #include "motor.h"
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
