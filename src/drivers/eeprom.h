@@ -21,10 +21,11 @@
 #define MAX_MESSAGE_LENGTH 61
 
 typedef struct {
-    float step_per_revolution; //32 bits
-    uint8_t pill_treatment_period; // 1-7
-    uint8_t pill_dispensed_count; // 0-6
+    float step_per_revolution; // 4bytes
+    uint8_t pill_treatment_period; // 4 bytes
+    uint8_t pill_dispensed_count; // 4 bytes
     bool is_calibrated;
+    uint8_t _padding;
     uint16_t crc16;
 } DispenserState; //total around 16 bytes, keep 64 bytes for these structure
 

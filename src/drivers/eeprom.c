@@ -5,6 +5,13 @@
 #include "pico/stdlib.h"
 
 //1.Private helpers
+static void print_hex_dump(const char* label, uint8_t* data, size_t len) {
+    printf("%s: ", label);
+    for (size_t i = 0; i < len; i++) {
+        printf("%02X ", data[i]);
+    }
+    printf("\n");
+}
 static uint16_t crc16(const uint8_t *data_p, size_t length) {
     uint8_t x;
     uint16_t crc = 0xFFFF; // Initial value
@@ -15,7 +22,6 @@ static uint16_t crc16(const uint8_t *data_p, size_t length) {
     }
     return crc;
 }
-
 static void eeprom_write_bytes(uint16_t addr, uint8_t *data_p, size_t length) {
     uint8_t buf[2 + length];
     buf[0] = (uint8_t)(addr >> 8);
@@ -24,7 +30,6 @@ static void eeprom_write_bytes(uint16_t addr, uint8_t *data_p, size_t length) {
     i2c_write_blocking(I2C_PORT, EEPROM_ADDR, buf, length + 2, false);
     sleep_ms(10);
 }
-
 static void eeprom_read_bytes(uint16_t addr, uint8_t *data_p, size_t length) {
     uint8_t addr_buf[2];
     addr_buf[0] = (uint8_t)(addr >> 8);
@@ -32,10 +37,6 @@ static void eeprom_read_bytes(uint16_t addr, uint8_t *data_p, size_t length) {
     i2c_write_blocking(I2C_PORT, EEPROM_ADDR, addr_buf, 2, true);
     i2c_read_blocking(I2C_PORT, EEPROM_ADDR, data_p, length, false);
 }
-
-
-//A log entry consists of a string that contains maximum 61 characters,
-//a terminating null character(zero) and two-byte CRC that is used to validate the integrity of the data.
 static bool log_entry_is_valid(const uint8_t *buffer) {
     //The string must contain at least one character.
     if (buffer[0]==0) return false;
@@ -62,6 +63,7 @@ static bool log_entry_is_valid(const uint8_t *buffer) {
     }
     return true;
 }
+
 
 void log_erase_all() {
     printf("Erasing all logs...\n");
@@ -129,7 +131,6 @@ void log_write_message(const char *message) {
     printf("Log written at entry %d: %s\n", target_entry_index, message);
 }
 
-
 void eeprom_init() {
     i2c_init(I2C_PORT, 100 * 1000); //100kHz
     gpio_set_function(SDA_GPIO, GPIO_FUNC_I2C);
@@ -139,69 +140,24 @@ void eeprom_init() {
 }
 
 void save_dispenser_state_to_eeprom(DispenserState *state) {
-    size_t data_length = sizeof(DispenserState) - sizeof(state->crc16); //exclude crc16
+    size_t data_length = offsetof(DispenserState, crc16);
     state->crc16 = crc16((uint8_t *)state, data_length);
+    //print_hex_dump("[DEBUG WRITE]", (uint8_t*)state, sizeof(DispenserState));
     eeprom_write_bytes(STORE_DISPENSER_ADDR, (uint8_t *)state, sizeof(DispenserState));
 }
 
-// bool load_dispenser_state_from_eeprom(DispenserState *state) {
-//     eeprom_read_bytes(STORE_DISPENSER_ADDR, (uint8_t *)state, sizeof(DispenserState));
-//     size_t data_length = sizeof(DispenserState) - sizeof(state->crc16); //exclude crc16
-//     uint16_t computed_crc = crc16((uint8_t *)state, data_length);
-//     if (computed_crc == state->crc16) {
-//         return true; //data corrupted
-//     }
-//     return false; //data valid //need print out need calibration
-// }
-
-// src/drivers/eeprom.c
-//
-// bool load_dispenser_state_from_eeprom(DispenserState *state) {
-//     // 1. 读取
-//     eeprom_read_bytes(STORE_DISPENSER_ADDR, (uint8_t*)state, sizeof(DispenserState));
-//
-//     // 2. 计算 CRC
-//     size_t data_len = offsetof(DispenserState, crc16);
-//     uint16_t calculated_crc = crc16((uint8_t*)state, data_len);
-//
-//     // ✅ 调试打印 (请把这几行的输出发给我)
-//     printf("\n[DEBUG DIAGNOSTIC]\n");
-//     printf("Addr: %d\n", STORE_DISPENSER_ADDR);
-//     printf("Read CRC: 0x%04X\n", state->crc16);
-//     printf("Calc CRC: 0x%04X\n", calculated_crc);
-//     printf("Read Steps: %.2f\n", state->step_per_revolution);
-//     printf("Read Count: %d\n", state->pill_dispensed_count);
-//     printf("Read Calibrated: %d\n", state->is_calibrated);
-//
-//     // 检查是不是全是 FF (空芯片/写入失败)
-//     if (state->crc16 == 0xFFFF && state->pill_dispensed_count == 0xFF) {
-//         printf("RESULT: Memory is Empty (0xFF). Write failed or chip erased.\n");
-//         return false;
-//     }
-//
-//     if (calculated_crc == state->crc16) {
-//         printf("RESULT: CRC Match! Data valid.\n");
-//         return true;
-//     } else {
-//         printf("RESULT: CRC Mismatch! Data corrupted.\n");
-//         return false;
-//     }
-// }
-
 bool load_dispenser_state_from_eeprom(DispenserState *state) {
     eeprom_read_bytes(STORE_DISPENSER_ADDR, (uint8_t *)state, sizeof(DispenserState));
-
-    size_t data_length = sizeof(DispenserState) - sizeof(state->crc16); // exclude crc16
+    //print_hex_dump("[DEBUG READ ]", (uint8_t*)state, sizeof(DispenserState));
+    size_t data_length = offsetof(DispenserState, crc16);
     uint16_t computed_crc = crc16((uint8_t *)state, data_length);
 
     if (computed_crc != state->crc16) {
-        // CRC 不匹配，数据认为是坏的
         printf("[EEPROM] CRC mismatch: stored=0x%04X, computed=0x%04X\n",
                state->crc16, computed_crc);
-        return false;   // 数据无效
+        return false;
     }
 
-    // CRC 匹配，数据有效
     printf("[EEPROM] State OK: step=%.2f, count=%d/%d, calibrated=%d\n",
            state->step_per_revolution,
            state->pill_dispensed_count,
