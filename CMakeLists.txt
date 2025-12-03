@@ -29,12 +29,17 @@ set(SOURCE_FILES
     src/drivers/lora.c
     src/drivers/eeprom.c
     src/drivers/led.c
+
         src/logic/dispenser.c
         src/logic/dispenser.h
         src/drivers/oled.c
         src/drivers/oled.h
         src/drivers/encoder.c
         src/drivers/encoder.h
+        src/drivers/appkey.h
+        src/drivers/appkey_templete.h
+        src/drivers/iuart.c
+        src/drivers/iuart.h
 )
 
 # Tell CMake where to find the executable source file

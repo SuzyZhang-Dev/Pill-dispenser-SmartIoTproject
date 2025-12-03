@@ -6,7 +6,7 @@
 
 
 static const uint leds[LEDS_COUNT] = {LED0_GPIO, LED1_GPIO, LED2_GPIO};
-static uint8_t current_brightness = BRIGHTNESS_NORMAL;
+static int current_brightness = BRIGHTNESS_NORMAL;
 static bool is_blinking = false;
 static LedMode current_led_mode = LED_ALL_OFF;
 static uint32_t last_toggle_time = 0;

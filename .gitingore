@@ -20,3 +20,6 @@ CMakeCache.txt
 *.uf2
 *.map
 *.dis
+
+# User Secrets
+src/secrets.h

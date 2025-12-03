@@ -35,9 +35,11 @@
 #define ENCODER_B_GPIO 11
 #define ENCODER_SW_GPIO 12
 
-
-
-
+// 5. LoRa
+#define UART_NR 1
+#define UART_TX_PIN 4
+#define UART_RX_PIN 5
+#define BAUD_RATE 9600
 //=================================
 // logic layer
 
