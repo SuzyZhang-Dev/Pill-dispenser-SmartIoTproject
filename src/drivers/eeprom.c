@@ -133,10 +133,10 @@ void log_write_message(const char *message) {
 
 void eeprom_init() {
     i2c_init(I2C_PORT, 100 * 1000); //100kHz
-    gpio_set_function(SDA_GPIO, GPIO_FUNC_I2C);
-    gpio_set_function(SCL_GPIO, GPIO_FUNC_I2C);
-    gpio_pull_up(SDA_GPIO);
-    gpio_pull_up(SCL_GPIO);
+    gpio_set_function(EEPROM_SDA_GPIO, GPIO_FUNC_I2C);
+    gpio_set_function(EEPROM_SCL_GPIO, GPIO_FUNC_I2C);
+    gpio_pull_up(EEPROM_SDA_GPIO);
+    gpio_pull_up(EEPROM_SCL_GPIO);
 }
 
 void save_dispenser_state_to_eeprom(DispenserState *state) {

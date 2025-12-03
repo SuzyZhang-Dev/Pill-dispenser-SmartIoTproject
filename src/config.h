@@ -7,25 +7,35 @@
 #define OPTO_SENSOR_PIN 28
 #define PIEZO_SENSOR_PIN 27
 
-// 2. EEPROM and I2C
+// 2. EEPROM and I2C0
 #define I2C_PORT i2c0
-#define SDA_GPIO 16
-#define SCL_GPIO 17
+#define EEPROM_SDA_GPIO 16
+#define EEPROM_SCL_GPIO 17
 
+// 3.OLED and I2C1
+#define OLED_I2C_PORT i2c1
+#define OLED_SDA_GPIO 14
+#define OLED_SCL_GPIO 15
+#define OLED_ADDR 0x3C
 
-
-// 3. buttons and leds
+// 4. buttons and leds
 #define SW0_GPIO 9 //control LED0
 #define SW1_GPIO 8 //control LED1
 #define SW2_GPIO 7 //control LED2
 
-#define LED0 22
-#define LED1 21
-#define LED2 20
+#define LED0_GPIO 22
+#define LED1_GPIO 21
+#define LED2_GPIO 20
 
 #define LED_BIT_0 (1 << 0)  // 0b00000001
 #define LED_BIT_1 (1 << 1)  // 0b00000010 = 2
 #define LED_BIT_2 (1 << 2) // 0b0000100 = 4
+
+#define ENCODER_A_GPIO 10
+#define ENCODER_B_GPIO 11
+#define ENCODER_SW_GPIO 12
+
+
 
 
 //=================================
