@@ -58,3 +58,36 @@ int main() {
 }
 
 
+//
+// #include "drivers/encoder.h"
+//
+// // ...
+//
+// int main() {
+//     // ... 其他初始化
+//     stdio_init_all();
+//     sleep_ms(3000);
+//
+//     set_motor_pins();
+//     sensor_init();
+//     dispenser_init();
+//     encoder_init();
+//
+//     while(1) {
+//         // 1. 检查旋转
+//         int rot = get_encoder_rotation();
+//         if (rot != 0) {
+//             printf("Rotated: %d\n", rot);
+//             // 这里处理亮度调节或菜单选择
+//             // change_value(rot);
+//         }
+//
+//         // 2. 检查按键
+//         if (is_encoder_button_pressed()) {
+//             printf("Button Clicked!\n");
+//             // 这里处理确认/下一步
+//         }
+//
+//         sleep_ms(10);
+//     }
+// }
