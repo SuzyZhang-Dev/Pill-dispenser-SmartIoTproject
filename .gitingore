@@ -22,4 +22,4 @@ CMakeCache.txt
 *.dis
 
 # appkeys
-src/appkey.h
+src/drivers/appkey.h
