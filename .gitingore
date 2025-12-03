@@ -22,4 +22,4 @@ CMakeCache.txt
 *.dis
 
 # User Secrets
-src/secrets.h
+src/appkey.h
