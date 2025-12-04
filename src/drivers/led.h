@@ -11,6 +11,7 @@
 #define BRIGHTNESS_NORMAL 300
 #define BRIGHTNESS_ERROR_OCCUR 800
 #define BLINK_INTERVAL_MS 500
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef enum {
@@ -26,6 +27,10 @@ void led_blink_task(void);
 
 void encoder_init();
 void buttons_init();
+
+bool is_sw2_pressed(void);
+bool is_sw0_pressed(void);
+
 
 
 #endif //PILLDISPENSER_LED_H

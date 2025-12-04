@@ -12,6 +12,7 @@
 #include "../drivers/sensor.h"
 #include "../drivers/eeprom.h"
 
+
 //default values for dispenser state
 static bool is_calibrated = false;
 static float step_per_revolution = 4096.0f;
@@ -23,6 +24,7 @@ static bool is_dispenser_empty() {
 
 void dispenser_init() {
     eeprom_init();
+
     DispenserState old_state;
 
     if (load_dispenser_state_from_eeprom(&old_state)) {
@@ -35,7 +37,6 @@ void dispenser_init() {
         sprintf(log_message, "System Boot: Loaded previous settings. Calibrated:%d, Dispensed:%d/%d",
                 is_calibrated, pill_dispensed_count, pill_treatment_period);
         log_write_message(log_message);
-
     }else {
         is_calibrated = false;
         step_per_revolution = 4096.0f;

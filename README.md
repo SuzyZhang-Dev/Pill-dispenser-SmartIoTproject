@@ -6,6 +6,7 @@ Pill_Dispenser_Project/
 │   ├── flowchart.md            # Operating principles
 │   ├── reflection.md           # Reflection/Division of work
 │   ├── lora_commands.md        # LoRa AT
+│   ├── lorareceive.py          # Example code to verify LoRa connection
 │   └── images/                 # screenshots and else
 │     
 ├── src/                        
