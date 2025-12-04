@@ -1,76 +1,201 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "config.h"
+#include "motor.h"
+#include "oled.h"
+#include "sensor.h"
 #include "drivers/led.h"
 #include "drivers/encoder.h"
 #include "drivers/lora.h"
-#include "logic/dispenser.h" // 如果需要调用出药逻辑
+#include "logic/dispenser.h"
+
+#define MAX_PERIOD 7
+#define MAX_DOSE 3
+#define DEFAULT_PERIOD 7
+#define DEFAULT_DOSE 1
+#define WELCOME_PAGE_TIMEOUT 5000
+
+typedef enum {
+    STATE_WELCOME,
+    STATE_MAIN_MENU,
+    STATE_SET_PERIOD,
+    STATE_WAIT_CALIBRATE,
+    STATE_CALIBRATE,
+    STATE_DISPENSING,
+    STATE_FAULT_CHECK
+} AppState_t;
+
+AppState_t current_state = STATE_WELCOME;
+uint32_t state_enter_time = 0;
+uint32_t last_input_time = 0;
+
+int setting_period = DEFAULT_PERIOD;
+
+static void system_init() {
+    stdio_init_all();
+    sleep_ms(2000);
+    led_init();
+    buttons_init(); // 必须初始化按键
+    encoder_init();
+    set_motor_pins(); // 初始化电机引脚
+    sensor_init();
+    dispenser_init();
+    lora_init();
+    oled_init();
+    oled_init_minimal();
+    oled_clear();
+    printf("[User] System Init\n");
+}
+
+void change_state(AppState_t new_state) {
+    current_state = new_state;
+    state_enter_time = to_ms_since_boot(get_absolute_time());
+    last_input_time = state_enter_time;
+    oled_clear(); // 切换状态自动清屏
+}
 
 int main() {
-    // 1. 系统初始化
-    stdio_init_all();
-    sleep_ms(2000); // 缓冲时间，方便串口工具连接
-    printf("=== Pill Dispenser System Boot ===\n");
+    system_init();
+    change_state(STATE_WELCOME);
 
-    // 2. 驱动初始化
-    led_init();
-    encoder_init();
-    lora_init();
+    // 用于追踪状态变化的变量 (初始化为无效值)
+    AppState_t last_loop_state = -1;
 
-    // 初始化出药逻辑(如果有)
-    // dispenser_init();
+    while (true) {
+        sleep_ms(20); // 保持延时，不用担心了
 
-    // 3. 初始状态：LED 闪烁表示正在启动/连接
-    led_set_mode(LED_BLINKING);
-    leds_set_brightness(BRIGHTNESS_NORMAL);
-
-    bool has_sent_welcome = false; // 标记位，防止重复发送
-
-    while (1) {
-        // --- 核心任务 (必须在循环中不断调用) ---
-        lora_get_ready_to_join();       // 处理 LoRa 状态机 (连接、接收)
-        led_blink_task();  // 处理 LED 非阻塞闪烁
-
-        // --- 业务逻辑 ---
-
-        // 1. 获取 LoRa 状态并反馈到 UI
-        LoraStatus_t net_state = lora_get_status();
-
-        if (net_state == LORA_STATUS_JOINED) {
-            // 如果连接成功，且还没发过欢迎消息
-            if (!has_sent_welcome) {
-                printf(">>> Main: Network Joined! Switching LED to Steady.\n");
-                led_set_mode(LED_ALL_ON); // 连上了，灯常亮
-                lora_send_message("Device Online"); // 发送一条上线通知
-                has_sent_welcome = true;
-            }
-        }
-        else if (net_state == LORA_FAILED) {
-            // 如果连接失败，高亮报警
-            led_set_mode(LED_ALL_ON);
-            leds_set_brightness(BRIGHTNESS_MAX);
-        }
-
-        // 2. 处理按钮事件 (发送测试消息)
-        if (is_encoder_button_pressed()) {
-            if (net_state == LORA_STATUS_JOINED) {
-                printf("[User] Button Pressed -> Sending 'Pill Dispensed'\n");
-                lora_send_message("Pill Dispensed");
-
-                // 可选：在这里调用出药马达逻辑
-                // do_dispense_single_round();
-            } else {
-                printf("[User] Button Pressed -> Ignored (Not Connected)\n");
-            }
-        }
-
-        // 3. 处理旋钮事件 (调节亮度)
         int rot = get_encoder_rotation();
-        if (rot != 0) {
-            // 这里仅仅演示，你可以把这个值加到 brightness 变量上
-            printf("[User] Encoder Rotated: %d\n", rot);
+        bool is_encoder_pressed = is_encoder_button_pressed();
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+
+        if (rot != 0 || is_encoder_pressed) {
+            last_input_time = now;
         }
 
-        sleep_ms(10); // 简单的 CPU 让渡
+        // ★★★ 核心修复：通过对比状态来判断是否是“第一帧” ★★★
+        // 只要 current_state 变了，is_entry_frame 就会是 true (仅限这一帧)
+        bool is_entry_frame = (current_state != last_loop_state);
+        last_loop_state = current_state; // 更新记录
+
+        switch (current_state) {
+            case STATE_WELCOME:
+                // 只有刚进入状态时画一次
+                if (is_entry_frame) {
+                    oled_show_string(0, 0, "Welcome to");
+                    oled_show_string(0, 2, "DoseMate :)");
+                    oled_show_string(0, 4, "Press to Start");
+                    oled_show_string(90, 6, "-->");
+                }
+
+                if (is_encoder_pressed || now - last_input_time > WELCOME_PAGE_TIMEOUT) {
+                    change_state(STATE_MAIN_MENU);
+                }
+                break;
+
+            case STATE_MAIN_MENU:
+            {
+                static int menu_index = 0;
+                // [修复] 刚进来时，强制刷新
+                bool need_refresh = is_entry_frame;
+
+                if (rot != 0) {
+                    menu_index += rot;
+                    if (menu_index > 1) menu_index = 0;
+                    else if (menu_index < 0) menu_index = 1;
+                    need_refresh = true;
+                }
+
+                if (need_refresh) {
+                    oled_show_string(10, 0, "Main menu");
+                    oled_show_string(10, 2, menu_index == 0 ? "> Set Dose  " : "  Set Dose    ");
+                    oled_show_string(10, 4, menu_index == 1 ? "> Get Pills " : "  Get Pills   ");
+                }
+
+                if (is_encoder_pressed) {
+                    if (menu_index == 0) change_state(STATE_SET_PERIOD);
+                    if (menu_index == 1) change_state(STATE_WAIT_CALIBRATE);
+                }
+            }
+            break;
+
+            case STATE_SET_PERIOD:
+            {
+                static int last_drawn_period = -1;
+                // [修复] 刚进来时，强制重置记忆
+                if (is_entry_frame) last_drawn_period = -1;
+
+                bool is_period_changed = false;
+                if (is_sw2_pressed()) { setting_period++; is_period_changed = true; }
+                if (is_sw0_pressed()) { setting_period--; is_period_changed = true; }
+
+                if (is_period_changed) {
+                    if (setting_period > DEFAULT_PERIOD) setting_period = MAX_PERIOD;
+                    if (setting_period < 1) setting_period = 1;
+                }
+
+                if (setting_period != last_drawn_period) {
+                    oled_clear(); // 局部刷新也可以 clear 一下保证干净，或者直接覆盖
+                    oled_show_string(0, 0, "Set Period");
+                    oled_show_string(0, 4, "Max 7 days");
+                    oled_show_string(0, 6, "SW0- SW2+ E<-");
+
+                    char buf[16];
+                    sprintf(buf, "%d", setting_period);
+                    oled_show_string(0, 2, buf);
+                    last_drawn_period = setting_period;
+                }
+
+                if (is_encoder_pressed) {
+                    change_state(STATE_MAIN_MENU);
+                }
+            }
+            break;
+
+            case STATE_WAIT_CALIBRATE:
+                if (is_entry_frame) {
+                    oled_show_string(0, 0, "Init Calibrate");
+                    oled_show_string(0, 2, "Press to Start");
+                }
+                if (is_encoder_pressed) {
+                    change_state(STATE_CALIBRATE);
+                }
+                break;
+
+            case STATE_CALIBRATE:
+                // [修复] 只有刚进来时执行一次
+                if (is_entry_frame) {
+                    oled_show_string(0, 4, "Calibrating...");
+
+                    dispenser_calibration();
+
+                    if (is_calibrated_dispenser()) {
+                        oled_clear();
+                        oled_show_string(0, 2, "Done!");
+                        oled_show_string(0, 4, "Press to Run");
+                    }
+                }
+
+                if (is_calibrated_dispenser() && is_encoder_pressed) {
+                    change_state(STATE_DISPENSING);
+                }
+                break;
+
+            case STATE_DISPENSING:
+                // [修复] 只有刚进来时执行一次
+                if (is_entry_frame) {
+                    oled_show_string(0, 0, "Dispensing...");
+                    for (int i = 0; i < setting_period; i++) {
+                        do_dispense_single_round();
+                    }
+                    oled_show_string(0, 2, "Finished!");
+                    sleep_ms(2000);
+                    change_state(STATE_MAIN_MENU);
+                }
+                break;
+
+            case STATE_FAULT_CHECK:
+                break;
+        }
     }
+    return 0;
 }
