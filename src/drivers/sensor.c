@@ -1,7 +1,3 @@
-//
-// Created by 张悦 on 1.12.2025.
-//
-
 #include "sensor.h"
 #include "../config.h"
 #include "hardware/gpio.h"
@@ -28,11 +24,10 @@ void sensor_init() {
     gpio_set_dir(PIEZO_SENSOR_PIN,GPIO_IN);
     gpio_pull_up(PIEZO_SENSOR_PIN);
 
-    gpio_set_irq_enabled_with_callback(
+    gpio_set_irq_enabled(
         PIEZO_SENSOR_PIN,
         GPIO_IRQ_EDGE_FALL,
-        true,
-        &piezo_irq_handler);
+        true);
 }
 
 void sensor_reset_pill_detected() {

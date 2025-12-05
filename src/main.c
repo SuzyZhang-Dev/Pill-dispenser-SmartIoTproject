@@ -1,13 +1,12 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "config.h"
 #include "motor.h"
 #include "oled.h"
 #include "sensor.h"
-#include "drivers/led.h"
-#include "drivers/encoder.h"
-#include "drivers/lora.h"
-#include "logic/dispenser.h"
+#include "led.h"
+#include "encoder.h"
+#include "lora.h"
+#include "dispenser.h"
 
 #define MAX_PERIOD 7
 #define MAX_DOSE 3
@@ -31,38 +30,52 @@ uint32_t last_input_time = 0;
 
 int setting_period = DEFAULT_PERIOD;
 
+//if we use encoder, there is a conflict using encoder interrupt with callback.
+//set a whole callback handler for main logic
+void main_gpio_callback(uint gpio, uint32_t events) {
+    encoder_gpio_handler(gpio, events);
+    piezo_irq_handler(gpio, events);
+}
+
 static void system_init() {
     stdio_init_all();
     sleep_ms(2000);
+    gpio_set_irq_callback(&main_gpio_callback);
+    irq_set_enabled(IO_IRQ_BANK0, true);
     led_init();
-    buttons_init(); // 必须初始化按键
+    buttons_init();
     encoder_init();
-    set_motor_pins(); // 初始化电机引脚
+    set_motor_pins();
     sensor_init();
     dispenser_init();
     lora_init();
     oled_init();
     oled_init_minimal();
     oled_clear();
-    printf("[User] System Init\n");
+    printf("[User] System Init.\n");
 }
 
 void change_state(AppState_t new_state) {
     current_state = new_state;
     state_enter_time = to_ms_since_boot(get_absolute_time());
     last_input_time = state_enter_time;
-    oled_clear(); // 切换状态自动清屏
+    oled_clear();
 }
+
+
 
 int main() {
     system_init();
     change_state(STATE_WELCOME);
 
-    // 用于追踪状态变化的变量 (初始化为无效值)
     AppState_t last_loop_state = -1;
 
     while (true) {
-        sleep_ms(20); // 保持延时，不用担心了
+        sleep_ms(20);
+
+        if (lora_get_status() != LORA_STATUS_JOINED && lora_get_status() != LORA_FAILED) {
+            lora_get_ready_to_join();
+        }
 
         int rot = get_encoder_rotation();
         bool is_encoder_pressed = is_encoder_button_pressed();
@@ -72,14 +85,12 @@ int main() {
             last_input_time = now;
         }
 
-        // ★★★ 核心修复：通过对比状态来判断是否是“第一帧” ★★★
-        // 只要 current_state 变了，is_entry_frame 就会是 true (仅限这一帧)
         bool is_entry_frame = (current_state != last_loop_state);
-        last_loop_state = current_state; // 更新记录
+        last_loop_state = current_state;
 
         switch (current_state) {
             case STATE_WELCOME:
-                // 只有刚进入状态时画一次
+                led_set_mode(LED_BLINKING);
                 if (is_entry_frame) {
                     oled_show_string(0, 0, "Welcome to");
                     oled_show_string(0, 2, "DoseMate :)");
@@ -95,7 +106,6 @@ int main() {
             case STATE_MAIN_MENU:
             {
                 static int menu_index = 0;
-                // [修复] 刚进来时，强制刷新
                 bool need_refresh = is_entry_frame;
 
                 if (rot != 0) {
@@ -121,7 +131,6 @@ int main() {
             case STATE_SET_PERIOD:
             {
                 static int last_drawn_period = -1;
-                // [修复] 刚进来时，强制重置记忆
                 if (is_entry_frame) last_drawn_period = -1;
 
                 bool is_period_changed = false;
@@ -134,7 +143,7 @@ int main() {
                 }
 
                 if (setting_period != last_drawn_period) {
-                    oled_clear(); // 局部刷新也可以 clear 一下保证干净，或者直接覆盖
+                    oled_clear();
                     oled_show_string(0, 0, "Set Period");
                     oled_show_string(0, 4, "Max 7 days");
                     oled_show_string(0, 6, "SW0- SW2+ E<-");
@@ -162,7 +171,6 @@ int main() {
                 break;
 
             case STATE_CALIBRATE:
-                // [修复] 只有刚进来时执行一次
                 if (is_entry_frame) {
                     oled_show_string(0, 4, "Calibrating...");
 
@@ -172,6 +180,7 @@ int main() {
                         oled_clear();
                         oled_show_string(0, 2, "Done!");
                         oled_show_string(0, 4, "Press to Run");
+                        led_set_mode(LED_ALL_ON);
                     }
                 }
 
@@ -181,7 +190,6 @@ int main() {
                 break;
 
             case STATE_DISPENSING:
-                // [修复] 只有刚进来时执行一次
                 if (is_entry_frame) {
                     oled_show_string(0, 0, "Dispensing...");
                     for (int i = 0; i < setting_period; i++) {
@@ -197,5 +205,4 @@ int main() {
                 break;
         }
     }
-    return 0;
 }

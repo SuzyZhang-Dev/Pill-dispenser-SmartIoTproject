@@ -3,7 +3,7 @@
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
 
-#define BTN_DEBOUNCE_MS 200
+#define BUTTON_DEBOUNCE_MS 200
 
 static const uint leds[LEDS_COUNT] = {LED0_GPIO, LED1_GPIO, LED2_GPIO};
 static int current_brightness = BRIGHTNESS_NORMAL;
@@ -78,8 +78,6 @@ void led_blink_task(void) {
 }
 
 
-
-
 void buttons_init() {
     gpio_init(SW0_GPIO);gpio_set_dir(SW0_GPIO, GPIO_IN);gpio_pull_up(SW0_GPIO);
     gpio_init(SW1_GPIO);gpio_set_dir(SW1_GPIO, GPIO_IN);gpio_pull_up(SW1_GPIO);
@@ -89,7 +87,7 @@ void buttons_init() {
 bool is_sw0_pressed(void) {
     bool is_down = !gpio_get(SW0_GPIO);
     uint32_t now = to_ms_since_boot(get_absolute_time());
-    if (is_down && (now - last_sw0_time > BTN_DEBOUNCE_MS)) {
+    if (is_down && (now - last_sw0_time > BUTTON_DEBOUNCE_MS)) {
         last_sw0_time = now;
         return true;
     }
@@ -100,7 +98,7 @@ bool is_sw2_pressed(void) {
     bool is_down = !gpio_get(SW2_GPIO);
     uint32_t now = to_ms_since_boot(get_absolute_time());
 
-    if (is_down && (now - last_sw2_time > BTN_DEBOUNCE_MS)) {
+    if (is_down && (now - last_sw2_time > BUTTON_DEBOUNCE_MS)) {
         last_sw2_time = now;
         return true;
     }
