@@ -15,42 +15,48 @@
 //default values for dispenser state
 static bool is_calibrated = false;
 static float step_per_revolution = 4096.0f;
-static int max_recovery_step = 4096 * 0.8;
+static int max_recovery_step = 400;
 static uint8_t pill_dispensed_count = 0;
 static uint8_t pill_treatment_period = 7; // could be adjusted by ui, do it later.
 static bool is_dispenser_empty() {
     return pill_dispensed_count >= pill_treatment_period;
 } // emptiness check
 
-static void dispenser_recalibrate_from_poweroff(DispenserState *state) {
+void dispenser_recalibrate_from_poweroff() {
+    DispenserState state;
 
-    int safety_count = 0;
+    int back_step_count = 0;
     if (opto_fork_sensor_read() == 0) {
-        printf("DEBUG: 在缺口内，先退没...\n");
-        while (opto_fork_sensor_read() == 0 && safety_count < max_recovery_step) {
+        while (opto_fork_sensor_read() == 0 && back_step_count < max_recovery_step) {
             motor_move_one_step(DISPENSER_BACK_DIRECTION);
             sleep_ms(2);
-            safety_count++;
+            back_step_count++;
         }
     }
-
+    back_step_count = 0;
     while (opto_fork_sensor_read() == 1) {
         motor_move_one_step(DISPENSER_BACK_DIRECTION);
         sleep_ms(2);
-        safety_count++;
+        back_step_count++;
     }
     motor_stop();
 
-    float step_per_slot = state->step_per_revolution/8.0f;
-    int steps_done = state->pill_dispensed_count * step_per_slot;
+    int target_forward_index = state.pill_dispensed_count;
+    float step_per_slot = step_per_revolution / 8.0f;
+    int steps_done = target_forward_index * step_per_slot;
     for (int i = 0; i < steps_done; i++) {
         motor_move_one_step(DEFAULT_DISPENSER_ROTATED_DIRECTION);
         sleep_ms(2);
     }
     motor_stop();
+    is_calibrated = true;
+    step_per_revolution = state.step_per_revolution;
+    pill_dispensed_count = state.pill_dispensed_count;
+    pill_treatment_period = state.pill_treatment_period;
 
-    state->motor_status = 0;
-    save_dispenser_state_to_eeprom(state);
+    state.motor_status = 0;
+    save_dispenser_state_to_eeprom(&state);
+
     printf("Done: Recovery from Poweroff\n");
     log_write_message("Recovery from Poweroff");
 }
@@ -62,9 +68,9 @@ void dispenser_init() {
 
     if (load_dispenser_state_from_eeprom(&old_state)) {
         // last time when turing poweroff
-        if (old_state.motor_status ==1) {
-            dispenser_recalibrate_from_poweroff(&old_state);
-        }
+        // if (old_state.motor_status ==1) {
+        //     dispenser_recalibrate_from_poweroff(&old_state);
+        // }
         is_calibrated = old_state.is_calibrated;
         step_per_revolution = old_state.step_per_revolution;
         pill_dispensed_count = old_state.pill_dispensed_count;

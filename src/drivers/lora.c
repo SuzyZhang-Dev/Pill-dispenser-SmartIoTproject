@@ -94,17 +94,17 @@ void lora_get_ready_to_join() {
     uint32_t now = to_ms_since_boot(get_absolute_time());
 
     if (lora_read_response()) {
-        printf("[LoRa Rx] %s\n",rx_line_buffer);
+        printf("[LoRa Rx] %s",rx_line_buffer);
 
         if (lora_step_joining == LORA_STEP_WAIT_JOIN_RESPONSE) {
             // document P36
             if (strstr(rx_line_buffer, "+JOIN: NetID") || strstr(rx_line_buffer, "+JOIN: Done")) {
-                printf("[LoRa Rx] Joined Successful.\n");
+                printf("[LoRa Rx] Joined Successful.");
                 lora_step_joining = LORA_STEP_READY;
                 lora_status = LORA_STATUS_JOINED;
             }
             else if (strstr(rx_line_buffer, "+JOIN: Join failed")) {
-                printf(">>> JOIN FAILED, Retrying in 5s <<<\n");
+                printf(">>> JOIN FAILED, Retrying in 5s <<<");
                 step_start_time_ms = now;
                 lora_step_joining = LORA_STEP_JOIN_FAILED_WAIT;
             }
