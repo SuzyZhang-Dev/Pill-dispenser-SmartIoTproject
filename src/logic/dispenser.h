@@ -14,6 +14,7 @@ bool is_pill_dropped();
 bool do_dispense_single_round();
 bool is_calibrated_dispenser();
 void dispenser_recalibrate_from_poweroff();
+void dispenser_reset();
 
 #define DEFAULT_DISPENSER_ROTATED_DIRECTION 1 //clock-wise
 #define DISPENSER_BACK_DIRECTION (-1)

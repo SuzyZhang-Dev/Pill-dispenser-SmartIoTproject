@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include "hardware/watchdog.h"
+#include "config.h"
 #include "pico/stdlib.h"
 #include "motor.h"
 #include "oled.h"
@@ -64,12 +66,7 @@ void change_state(AppState_t new_state) {
 
 int main() {
     system_init();
-    if (is_calibrated_dispenser()) {
-        change_state(STATE_WAIT_CALIBRATE);
-    }else {
-        change_state(STATE_WELCOME);
-    }
-
+    //dispenser_reset();
     AppState_t last_loop_state = -1;
 
     while (true) {
