@@ -147,7 +147,7 @@ void lora_get_ready_to_join() {
                     lora_step_joining = LORA_STEP_SEND_AT;
                 } else {
                     printf("LoRa Module not responding!\n");
-                    lora_status = LORA_FAILED;
+                    lora_status = LORA_STATUS_FAILED;
                 }
             }
             break;

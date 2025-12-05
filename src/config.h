@@ -40,11 +40,17 @@
 #define UART_TX_PIN 4
 #define UART_RX_PIN 5
 #define BAUD_RATE 9600
-//=================================
+
+
 // logic layer
-
 #define PILL_FALL_TIMEOUT_MS 150 // at least 80ms for a pill to fall through
-
-
+#define MAX_PERIOD 7
+#define MAX_DOSE 3
+#define DEFAULT_PERIOD 7
+#define DEFAULT_DOSE 1
+#define WELCOME_PAGE_TIMEOUT 5000
+#define PILL_DISPENSE_INTERVAL 5000 // if success.
+#define PILL_DISPENSE_RETRY 3000 //if any compartments without a pill
+#define MAX_DISPENSE_RETRIES 7
 
 #endif
