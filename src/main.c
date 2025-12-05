@@ -62,11 +62,13 @@ void change_state(AppState_t new_state) {
     oled_clear();
 }
 
-
-
 int main() {
     system_init();
-    change_state(STATE_WELCOME);
+    if (is_calibrated_dispenser()) {
+        change_state(STATE_WAIT_CALIBRATE);
+    }else {
+        change_state(STATE_WELCOME);
+    }
 
     AppState_t last_loop_state = -1;
 
@@ -162,7 +164,11 @@ int main() {
 
             case STATE_WAIT_CALIBRATE:
                 if (is_entry_frame) {
-                    oled_show_string(0, 0, "Init Calibrate");
+                    if (is_calibrated_dispenser()) {
+                        oled_show_string(0, 0, "Resume Calibrate");
+                    }else {
+                        oled_show_string(0, 0, "Init Calibrate");
+                    }
                     oled_show_string(0, 2, "Press to Start");
                 }
                 if (is_encoder_pressed) {
@@ -172,9 +178,14 @@ int main() {
 
             case STATE_CALIBRATE:
                 if (is_entry_frame) {
-                    oled_show_string(0, 4, "Calibrating...");
-
-                    dispenser_calibration();
+                    if (!is_calibrated_dispenser()) {
+                        oled_show_string(0, 4, "Calibrating...");
+                        dispenser_calibration();
+                    }else {
+                        oled_show_string(0, 4, "Recovery from Poweroff");
+                        dispenser_recalibrate_from_poweroff();
+                        sleep_ms(1000);
+                    }
 
                     if (is_calibrated_dispenser()) {
                         oled_clear();
