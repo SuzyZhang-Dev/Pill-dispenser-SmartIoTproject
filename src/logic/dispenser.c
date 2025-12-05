@@ -24,6 +24,14 @@ static bool is_dispenser_empty() {
 
 void dispenser_recalibrate_from_poweroff() {
     DispenserState state;
+    int target_forward_index = state.pill_dispensed_count;
+    float step_per_slot = step_per_revolution / 8.0f;
+    int steps_done = target_forward_index * step_per_slot;
+
+    if (!load_dispenser_state_from_eeprom(&state)) {
+        printf("No saved state, cannot recover.\n");
+        return;
+    }
 
     int back_step_count = 0;
     if (opto_fork_sensor_read() == 0) {
@@ -34,16 +42,14 @@ void dispenser_recalibrate_from_poweroff() {
         }
     }
     back_step_count = 0;
-    while (opto_fork_sensor_read() == 1) {
+    while (opto_fork_sensor_read() == 1 && back_step_count < steps_done) {
         motor_move_one_step(DISPENSER_BACK_DIRECTION);
         sleep_ms(2);
         back_step_count++;
     }
     motor_stop();
 
-    int target_forward_index = state.pill_dispensed_count;
-    float step_per_slot = step_per_revolution / 8.0f;
-    int steps_done = target_forward_index * step_per_slot;
+
     for (int i = 0; i < steps_done; i++) {
         motor_move_one_step(DEFAULT_DISPENSER_ROTATED_DIRECTION);
         sleep_ms(2);
@@ -262,4 +268,24 @@ bool is_pill_dropped() {
 }
 bool is_calibrated_dispenser() {
     return is_calibrated;
+}
+
+void dispenser_reset() {
+    log_erase_all();
+    DispenserState clean_state;
+    memset(&clean_state, 0, sizeof(DispenserState));
+
+    clean_state.is_calibrated = false;
+    clean_state.step_per_revolution = 4096.0f;
+    clean_state.pill_dispensed_count = 0;
+    clean_state.pill_treatment_period = 7;
+    clean_state.motor_status = 0;
+    save_dispenser_state_to_eeprom(&clean_state);
+
+    is_calibrated = false;
+    pill_dispensed_count = 0;
+
+    log_write_message("System: Factory Reset Performed");
+    printf("Factory Reset Complete. Please Restart.\n");
+
 }
