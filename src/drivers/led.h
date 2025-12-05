@@ -8,7 +8,7 @@
 #define LEDS_COUNT 3
 #define BRIGHTNESS_MAX 1000
 #define LED_DIVIDER 125
-#define BRIGHTNESS_NORMAL 300
+#define BRIGHTNESS_NORMAL 200
 #define BRIGHTNESS_ERROR_OCCUR 800
 #define BLINK_INTERVAL_MS 500
 #include <stdbool.h>
@@ -30,7 +30,6 @@ void buttons_init();
 
 bool is_sw2_pressed(void);
 bool is_sw0_pressed(void);
-
 
 
 #endif //PILLDISPENSER_LED_H

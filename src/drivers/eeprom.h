@@ -14,9 +14,9 @@
 
 #define STORE_DISPENSER_ADDR (MAX_EEPROM_ADDR - 64)
 #define LOG_BASE_ADDRESS 0
-#define LOG_SIZE 4096 //bytes
+#define LOG_SIZE (4096*4) //bytes
 #define LOG_ENTRY_SIZE 64 //bytes
-#define LOG_MAX_ENTRIES (LOG_SIZE / LOG_ENTRY_SIZE) //64 entries
+#define LOG_MAX_ENTRIES (LOG_SIZE / LOG_ENTRY_SIZE)
 //#define INPUT_BUFFER_SIZE 64 //bytes
 #define MAX_MESSAGE_LENGTH 61
 

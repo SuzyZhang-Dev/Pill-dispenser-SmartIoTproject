@@ -11,7 +11,7 @@ static uint32_t last_press_time = 0;
 // use volatile buz it could be changed in interrupt
 static volatile bool is_encoder_pressed = false;
 
-static void encoder_callback_handler(uint gpio, uint32_t events_mask) {
+void encoder_gpio_handler(uint gpio, uint32_t events_mask) {
     if (gpio == ENCODER_A_GPIO) {
         int event_value = 0;
         if (gpio_get(ENCODER_B_GPIO)) {
@@ -38,7 +38,7 @@ void encoder_init() {
 
     queue_init(&events, sizeof(int), 32);
 
-    gpio_set_irq_enabled_with_callback(ENCODER_A_GPIO, GPIO_IRQ_EDGE_RISE, true, &encoder_callback_handler);
+    gpio_set_irq_enabled(ENCODER_A_GPIO, GPIO_IRQ_EDGE_RISE, true);
     gpio_set_irq_enabled(ENCODER_SW_GPIO, GPIO_IRQ_EDGE_FALL, true);
 }
 
