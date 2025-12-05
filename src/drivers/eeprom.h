@@ -5,7 +5,6 @@
 #ifndef PILLDISPENSER_EEPROM_H
 #define PILLDISPENSER_EEPROM_H
 #include <stdint.h>
-#include "hardware/i2c.h"
 #include <string.h>
 #include <stdbool.h>
 
@@ -25,7 +24,7 @@ typedef struct {
     uint8_t pill_treatment_period; // 4 bytes
     uint8_t pill_dispensed_count; // 4 bytes
     bool is_calibrated;
-    uint8_t _padding;
+    uint8_t motor_status; // for power-off protection, 0 for stable, 1 for turning.
     uint16_t crc16;
 } DispenserState; //total around 16 bytes, keep 64 bytes for these structure
 
