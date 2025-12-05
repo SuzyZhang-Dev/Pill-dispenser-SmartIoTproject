@@ -10,7 +10,7 @@ typedef enum {
     LORA_STATUS_CONNECTING,
     LORA_STATUS_JOINING,
     LORA_STATUS_JOINED,
-    LORA_FAILED
+    LORA_STATUS_FAILED
 } LoraStatus_t;
 
 void lora_send_command(const char *cmd);

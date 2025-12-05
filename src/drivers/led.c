@@ -77,6 +77,21 @@ void led_blink_task(void) {
     }
 }
 
+void led_blinking_nonblocking(int times, int interval) {
+    uint32_t old_brightness = current_brightness; // save normal brightness to a new
+    LedMode old_mode = current_led_mode;
+    led_set_mode(LED_ALL_OFF);
+    leds_set_brightness(BRIGHTNESS_ERROR_OCCUR);
+    for (int i = 0; i < times; i++) {
+        set_pwm_level(BRIGHTNESS_ERROR_OCCUR);
+        sleep_ms(interval);
+        set_pwm_level(0);
+        sleep_ms(interval);
+    }
+    led_set_mode(old_mode);
+    leds_set_brightness(old_brightness);
+}
+
 
 void buttons_init() {
     gpio_init(SW0_GPIO);gpio_set_dir(SW0_GPIO, GPIO_IN);gpio_pull_up(SW0_GPIO);
@@ -104,3 +119,4 @@ bool is_sw2_pressed(void) {
     }
     return false;
 }
+
