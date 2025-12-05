@@ -14,6 +14,8 @@ bool do_dispense_single_round();
 bool is_calibrated_dispenser();
 
 #define DEFAULT_DISPENSER_ROTATED_DIRECTION 1 //clock-wise
+#define DISPENSER_BACK_DIRECTION (-1)
+
 #define FAILURE_DISPENSE_PROMPT "Failure dispense."
 #define CALIBRATION_ROUNDS 3 //temporary
 

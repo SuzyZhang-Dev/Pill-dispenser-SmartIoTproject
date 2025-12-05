@@ -1,8 +1,9 @@
+#include "pico/stdlib.h"
 #include "eeprom.h"
 #include <stdio.h>
 #include "../config.h"
 #include "hardware/gpio.h"
-#include "pico/stdlib.h"
+#include "hardware/i2c.h"
 
 //1.Private helpers
 static void print_hex_dump(const char* label, uint8_t* data, size_t len) {

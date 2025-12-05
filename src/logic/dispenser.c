@@ -1,4 +1,6 @@
 #include "dispenser.h"
+
+#include <math.h>
 #include <stdio.h>
 
 #include "../config.h"
@@ -13,18 +15,56 @@
 //default values for dispenser state
 static bool is_calibrated = false;
 static float step_per_revolution = 4096.0f;
+static int max_recovery_step = 4096 * 0.8;
 static uint8_t pill_dispensed_count = 0;
 static uint8_t pill_treatment_period = 7; // could be adjusted by ui, do it later.
 static bool is_dispenser_empty() {
     return pill_dispensed_count >= pill_treatment_period;
 } // emptiness check
 
+static void dispenser_recalibrate_from_poweroff(DispenserState *state) {
+
+    int safety_count = 0;
+    if (opto_fork_sensor_read() == 0) {
+        printf("DEBUG: 在缺口内，先退没...\n");
+        while (opto_fork_sensor_read() == 0 && safety_count < max_recovery_step) {
+            motor_move_one_step(DISPENSER_BACK_DIRECTION);
+            sleep_ms(2);
+            safety_count++;
+        }
+    }
+
+    while (opto_fork_sensor_read() == 1) {
+        motor_move_one_step(DISPENSER_BACK_DIRECTION);
+        sleep_ms(2);
+        safety_count++;
+    }
+    motor_stop();
+
+    float step_per_slot = state->step_per_revolution/8.0f;
+    int steps_done = state->pill_dispensed_count * step_per_slot;
+    for (int i = 0; i < steps_done; i++) {
+        motor_move_one_step(DEFAULT_DISPENSER_ROTATED_DIRECTION);
+        sleep_ms(2);
+    }
+    motor_stop();
+
+    state->motor_status = 0;
+    save_dispenser_state_to_eeprom(state);
+    printf("Done: Recovery from Poweroff\n");
+    log_write_message("Recovery from Poweroff");
+}
+
+
 void dispenser_init() {
     eeprom_init();
-
     DispenserState old_state;
 
     if (load_dispenser_state_from_eeprom(&old_state)) {
+        // last time when turing poweroff
+        if (old_state.motor_status ==1) {
+            dispenser_recalibrate_from_poweroff(&old_state);
+        }
         is_calibrated = old_state.is_calibrated;
         step_per_revolution = old_state.step_per_revolution;
         pill_dispensed_count = old_state.pill_dispensed_count;
@@ -77,7 +117,7 @@ void dispenser_calibration() {
 
     for (int i = 0; i < CALIBRATION_ROUNDS; i++) {
         int gap_steps = 0;   // when sensor == 0
-        int blind_steps = 0; // 遮挡部分的步数 (Sensor == 1)
+        int blind_steps = 0; // sensor == 1
 
         // we already stop at sensor == 0 before enter the loop, and find when 0 to 1.
         // that is how far we "over" the perfectly aligned
@@ -135,6 +175,15 @@ bool do_dispense_single_round() {
         printf("Empty dispenser, need refill.\n");
         return false;
     }
+
+    //check last round if power off
+    DispenserState check_state;
+    if (load_dispenser_state_from_eeprom(&check_state)) {
+        check_state.motor_status = 1; //turning
+        save_dispenser_state_to_eeprom(&check_state);
+    }
+
+
     //reset pill detected sensor, in case of false positive from last round
     sensor_reset_pill_detected();
     //rotate one part of the wheel at one time, could be designed by loop in main to control frequency.
@@ -172,7 +221,7 @@ bool do_dispense_single_round() {
         current_state.is_calibrated = is_calibrated;
         current_state.pill_dispensed_count = pill_dispensed_count;
         current_state.pill_treatment_period = pill_treatment_period;
-
+        current_state.motor_status = 0; // motor is stable.
         save_dispenser_state_to_eeprom(&current_state);
 
         return true;
@@ -180,6 +229,17 @@ bool do_dispense_single_round() {
         printf("❌Dispense failed.\n");
         log_write_message("[log]no pill detected");
         lora_send_message("NOPILLCOME");
+
+        // using global varables
+        DispenserState current_state;
+        memset(&current_state, 0, sizeof(DispenserState));
+        current_state.step_per_revolution = step_per_revolution;
+        current_state.is_calibrated = is_calibrated;
+        current_state.pill_dispensed_count = pill_dispensed_count; //here no ++
+        current_state.pill_treatment_period = pill_treatment_period;
+        current_state.motor_status = 0; // motor is stable.
+        save_dispenser_state_to_eeprom(&current_state);
+
         return false;
     }
 }

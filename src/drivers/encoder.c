@@ -1,8 +1,6 @@
 #include "encoder.h"
 #include "config.h"
 #include <stdio.h>
-#include "pico/stdlib.h"
-#include "hardware/pwm.h"
 #include "hardware/gpio.h"
 #include "pico/util/queue.h"
 
