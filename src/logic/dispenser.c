@@ -84,12 +84,24 @@ void dispenser_recalibrate_from_poweroff() {
 
     printf("[Recovery] Gap width: %d steps\n", gap_width);
 
-    // 回退到孔的起始位置，然后前进到中心
-    for (int i = 0; i < gap_width; i++) {
+    // FIX START: 修复对齐逻辑并消除齿轮间隙
+    // 此时我们已经向后（逆时针）穿过了整个孔，处于孔的另一侧（传感器读取为1，被遮挡）
+    // 我们需要改为向前（顺时针）移动，直到再次检测到孔（传感器变0）
+    // 这一步不仅能找到孔的确切边缘，还能消除电机换向时的齿轮间隙 (Backlash)
+
+    printf("[Recovery] Switching direction to CW to find edge and clear backlash...\n");
+    int align_steps = 0;
+    // 向前走直到看见孔（传感器变0）
+    while (opto_fork_sensor_read() == 1 && align_steps < 100) {
         motor_move_one_step(DEFAULT_DISPENSER_ROTATED_DIRECTION);
+        align_steps++;
     }
 
+    // 此时正好停在孔的边缘（刚进入孔）
+    // 再向前走半个孔宽，即可到达中心
     int steps_to_center = gap_width / 2;
+    printf("[Recovery] Found edge. Moving %d steps to center.\n", steps_to_center);
+
     for (int i = 0; i < steps_to_center; i++) {
         motor_move_one_step(DEFAULT_DISPENSER_ROTATED_DIRECTION);
     }

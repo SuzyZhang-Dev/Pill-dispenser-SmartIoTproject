@@ -184,6 +184,8 @@ int main() {
                         sleep_ms(1000);
                     }
 
+                    is_encoder_button_pressed();
+
                     if (is_calibrated_dispenser()) {
                         oled_clear();
                         oled_show_string(0, 2, "Done!");
