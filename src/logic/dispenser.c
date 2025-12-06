@@ -29,7 +29,6 @@ void dispenser_recalibrate_from_poweroff() {
         return;
     }
 
-    // 恢复状态变量
     step_per_revolution = state.step_per_revolution;
     pill_dispensed_count = state.pill_dispensed_count;
     pill_treatment_period = state.pill_treatment_period;
@@ -37,20 +36,18 @@ void dispenser_recalibrate_from_poweroff() {
     printf("[Recovery] State loaded: dispensed=%d/%d, steps/rev=%.2f\n",
            pill_dispensed_count, pill_treatment_period, step_per_revolution);
 
-    // 计算目标位置（已分药的格子数）
-    int target_slot = pill_dispensed_count;  // 0-based: 0表示初始位置，1表示分了1个
+    int target_slot = pill_dispensed_count;
     float steps_per_slot = step_per_revolution / 8.0f;
     int target_steps_from_home = (int)(target_slot * steps_per_slot + 0.5f);
 
     printf("[Recovery] Target position: slot %d, %d steps from home\n",
            target_slot, target_steps_from_home);
 
-    // ===== 步骤1: 回退到校准孔（home位置）=====
+    // back to home
     printf("[Recovery] Step 1: Moving back to calibration hole...\n");
 
     int back_step_count = 0;
 
-    // 1a. 如果当前在孔内，先退出孔
     if (opto_fork_sensor_read() == 0) {
         printf("[Recovery] Currently in hole, moving out...\n");
         while (opto_fork_sensor_read() == 0 && back_step_count < max_recovery_step) {
@@ -60,7 +57,7 @@ void dispenser_recalibrate_from_poweroff() {
         printf("[Recovery] Moved out of hole: %d steps\n", back_step_count);
     }
 
-    // 1b. 向后找第一个下降沿（找到校准孔）
+    // back to first falling edge
     back_step_count = 0;
     printf("[Recovery] Searching for calibration hole...\n");
     while (opto_fork_sensor_read() == 1 && back_step_count < max_recovery_step) {
@@ -75,7 +72,7 @@ void dispenser_recalibrate_from_poweroff() {
 
     printf("[Recovery] Found calibration hole after %d steps\n", back_step_count);
 
-    // 1c. 测量孔的宽度，移动到孔中心
+    // go to the centre of the compartments
     int gap_width = 0;
     while (opto_fork_sensor_read() == 0 && gap_width < 100) {
         motor_move_one_step(DISPENSER_BACK_DIRECTION);
@@ -84,21 +81,14 @@ void dispenser_recalibrate_from_poweroff() {
 
     printf("[Recovery] Gap width: %d steps\n", gap_width);
 
-    // FIX START: 修复对齐逻辑并消除齿轮间隙
-    // 此时我们已经向后（逆时针）穿过了整个孔，处于孔的另一侧（传感器读取为1，被遮挡）
-    // 我们需要改为向前（顺时针）移动，直到再次检测到孔（传感器变0）
-    // 这一步不仅能找到孔的确切边缘，还能消除电机换向时的齿轮间隙 (Backlash)
 
     printf("[Recovery] Switching direction to CW to find edge and clear backlash...\n");
     int align_steps = 0;
-    // 向前走直到看见孔（传感器变0）
     while (opto_fork_sensor_read() == 1 && align_steps < 100) {
         motor_move_one_step(DEFAULT_DISPENSER_ROTATED_DIRECTION);
         align_steps++;
     }
 
-    // 此时正好停在孔的边缘（刚进入孔）
-    // 再向前走半个孔宽，即可到达中心
     int steps_to_center = gap_width / 2;
     printf("[Recovery] Found edge. Moving %d steps to center.\n", steps_to_center);
 
@@ -110,7 +100,6 @@ void dispenser_recalibrate_from_poweroff() {
     printf("[Recovery] Centered at home position (calibration hole)\n");
     sleep_ms(500);
 
-    // ===== 步骤2: 前进到目标位置 =====
     if (target_steps_from_home > 0) {
         printf("[Recovery] Step 2: Moving forward %d steps to slot %d...\n",
                target_steps_from_home, target_slot);
@@ -127,10 +116,8 @@ void dispenser_recalibrate_from_poweroff() {
 
     motor_stop();
 
-    // 更新状态
     is_calibrated = true;
 
-    // 重置motor_status为稳定状态
     state.motor_status = 0;
     save_dispenser_state_to_eeprom(&state);
 
@@ -261,14 +248,13 @@ bool do_dispense_single_round() {
         return false;
     }
 
-    // ⚠️ 重要：在开始转动前保存状态（标记motor_status=1）
     DispenserState pre_dispense_state;
     memset(&pre_dispense_state, 0, sizeof(DispenserState));
     pre_dispense_state.step_per_revolution = step_per_revolution;
     pre_dispense_state.is_calibrated = is_calibrated;
     pre_dispense_state.pill_dispensed_count = pill_dispensed_count;
     pre_dispense_state.pill_treatment_period = pill_treatment_period;
-    pre_dispense_state.motor_status = 1;  // 标记：电机正在转动
+    pre_dispense_state.motor_status = 1;  //mark dispenser as turning.
     save_dispenser_state_to_eeprom(&pre_dispense_state);
 
     sensor_reset_pill_detected();
@@ -310,7 +296,7 @@ bool do_dispense_single_round() {
         success_state.is_calibrated = is_calibrated;
         success_state.pill_dispensed_count = pill_dispensed_count;
         success_state.pill_treatment_period = pill_treatment_period;
-        success_state.motor_status = 0;  // 转动完成，标记为稳定
+        success_state.motor_status = 0;
         save_dispenser_state_to_eeprom(&success_state);
 
         return true;
@@ -319,7 +305,7 @@ bool do_dispense_single_round() {
         log_write_message("Dispense failed: no pill detected");
         lora_send_message("NOPILL");
 
-        // 失败时，motor_status也要设为0（转动已完成，只是没检测到药）
+        // if no pill fall the motor state should also be 0
         DispenserState fail_state;
         memset(&fail_state, 0, sizeof(DispenserState));
         fail_state.step_per_revolution = step_per_revolution;

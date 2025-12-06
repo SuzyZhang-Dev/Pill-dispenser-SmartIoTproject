@@ -64,14 +64,11 @@ void change_state(AppState_t new_state) {
 void sleep_ms_with_lora(uint32_t ms) {
     uint32_t end_time = to_ms_since_boot(get_absolute_time()) + ms;
     while (to_ms_since_boot(get_absolute_time()) < end_time) {
-        // 只要 LoRa 开启且没坏，就一直轮询消息
         if (is_lora_enabled && lora_get_status() != LORA_STATUS_FAILED) {
             lora_get_ready_to_join();
         }
-        // 保持 LED 闪烁任务 (非阻塞部分)
         led_blink_task();
-
-        sleep_ms(10); // 短暂休眠释放 CPU
+        sleep_ms(10);
     }
 }
 
@@ -108,7 +105,6 @@ int main() {
                 static int mode_index = 0; // 0=With LoRa, 1=Offline
                 bool need_refresh = is_entry_frame;
 
-                // 允许 LED 闪烁提示系统在运行
                 led_set_mode(LED_BLINKING);
 
                 if (rot != 0) {
@@ -132,14 +128,12 @@ int main() {
 
                 if (is_encoder_pressed) {
                     if (mode_index == 0) {
-                        // 用户选择 LoRa
                         is_lora_enabled = true;
-                        change_state(STATE_LORA_CONNECT); // 进入连接等待界面
+                        change_state(STATE_LORA_CONNECT);
                     } else {
-                        // 用户选择离线
                         is_lora_enabled = false;
                         printf("[User] Selected Offline Mode.\n");
-                        change_state(STATE_MAIN_MENU); // 直接进主菜单
+                        change_state(STATE_MAIN_MENU);
                     }
                 }
                 break;
@@ -147,53 +141,47 @@ int main() {
             case STATE_LORA_CONNECT:
                 if (is_entry_frame) {
                     oled_clear();
-                    // [FIX] 补全显示代码，修复黑屏问题
                     oled_show_string(0, 0, "[ Connecting ]");
                     oled_show_string(0, 3, "Joining LoRaWAN");
                     oled_show_string(0, 5, "Please Wait...");
-                    oled_show_string(0, 7, "(Press -> Skip)");
-
                     led_set_mode(LED_BLINKING);
                 }
 
-                // 检查状态
                 LoraStatus_t status = lora_get_status();
-
-                // 2.1 成功
                 if (status == LORA_STATUS_JOINED) {
                     oled_clear();
                     oled_show_string(0, 2, "Success!");
                     oled_show_string(0, 4, "LoRa Online");
-                    led_set_mode(LED_ALL_ON); // 常亮表示成功
+                    led_set_mode(LED_ALL_ON);
                     sleep_ms(3000);
                     change_state(STATE_MAIN_MENU);
                 }
-                //2.2 失败 (LoRa 模块报告 Failed)
+
                 else if (status == LORA_STATUS_FAILED) {
                     oled_clear();
                     oled_show_string(0, 2, "Join Failed!");
                     oled_show_string(0, 4, "Go Offline Mode");
 
-                    is_lora_enabled = false; // 既然坏了，就自动禁用，防止后台干扰
+                    is_lora_enabled = false;
                     sleep_ms(2000);
                     change_state(STATE_MAIN_MENU);
                 }
-                // // 超时处理 (例如等待超过 20秒还没连上)
+
                 else if (now - state_enter_time > 20000) {
                     oled_clear();
                     oled_show_string(0, 2, "Timeout!");
                     oled_show_string(0, 4, "Go Offline Mode");
 
-                    is_lora_enabled = false; // 既然用户等得不耐烦了，通常建议切离线
+                    is_lora_enabled = false;
 
                     sleep_ms(2000);
                     change_state(STATE_MAIN_MENU);
                 }
 
-                // 允许用户手动跳过
+
                 if (is_encoder_pressed) {
                     printf("[User] Cancelled LoRa joining.\n");
-                    is_lora_enabled = false; // 用户主动跳过，不再尝试
+                    is_lora_enabled = false;
                     change_state(STATE_MAIN_MENU);
                 }
                 break;
