@@ -32,16 +32,12 @@ void oled_send_data(uint8_t data) {
 
 void oled_init_minimal() {
     oled_send_cmd(0xAE);
-
     oled_send_cmd(0x20);
     oled_send_cmd(0x00);
-
     oled_send_cmd(0x8D);
     oled_send_cmd(0x14);
-
     oled_send_cmd(0xA1);
     oled_send_cmd(0xC8);
-
     oled_send_cmd(0xAF);
 }
 

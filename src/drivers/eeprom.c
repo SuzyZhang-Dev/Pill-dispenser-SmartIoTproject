@@ -6,13 +6,6 @@
 #include "hardware/i2c.h"
 
 //1.Private helpers
-static void print_hex_dump(const char* label, uint8_t* data, size_t len) {
-    printf("%s: ", label);
-    for (size_t i = 0; i < len; i++) {
-        printf("%02X ", data[i]);
-    }
-    printf("\n");
-}
 static uint16_t crc16(const uint8_t *data_p, size_t length) {
     uint8_t x;
     uint16_t crc = 0xFFFF; // Initial value
@@ -129,7 +122,7 @@ void log_write_message(const char *message) {
     entry[msg_length+2] = (uint8_t)(crc & 0xFF);
     uint16_t write_address = LOG_BASE_ADDRESS + (target_entry_index * LOG_ENTRY_SIZE);
     eeprom_write_bytes(write_address, entry, LOG_ENTRY_SIZE);
-    printf("Log written at entry %d: %s\n", target_entry_index, message);
+    printf("[Log %d]: %s\n", target_entry_index, message);
 }
 
 void eeprom_init() {
@@ -143,13 +136,11 @@ void eeprom_init() {
 void save_dispenser_state_to_eeprom(DispenserState *state) {
     size_t data_length = offsetof(DispenserState, crc16);
     state->crc16 = crc16((uint8_t *)state, data_length);
-    //print_hex_dump("[DEBUG WRITE]", (uint8_t*)state, sizeof(DispenserState));
     eeprom_write_bytes(STORE_DISPENSER_ADDR, (uint8_t *)state, sizeof(DispenserState));
 }
 
 bool load_dispenser_state_from_eeprom(DispenserState *state) {
     eeprom_read_bytes(STORE_DISPENSER_ADDR, (uint8_t *)state, sizeof(DispenserState));
-    //print_hex_dump("[DEBUG READ ]", (uint8_t*)state, sizeof(DispenserState));
     size_t data_length = offsetof(DispenserState, crc16);
     uint16_t computed_crc = crc16((uint8_t *)state, data_length);
 

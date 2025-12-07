@@ -23,7 +23,7 @@ void led_init(void);
 void leds_set_brightness(uint16_t brightness);
 void led_set_mode(LedMode mode);
 void led_blink_task(void);
-void led_blinking_nonblocking(int times, int interval);
+void led_blinking_error(int times, int interval);
 
 
 #endif //PILLDISPENSER_LED_H

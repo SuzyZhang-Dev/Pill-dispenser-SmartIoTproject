@@ -8,12 +8,14 @@
 #include "appkey.h"
 
 #define RX_BUFFER_SIZE 128
-#define RESPONSE_TIMEOUT_MS 2000 //waits for response for 500 ms
+#define RESPONSE_TIMEOUT_MS 5000 //waits for response for 5s
 #define MAX_AT_RETRIES 5 //try 5 times and if not, back to STEP 1
 #define MAX_JOIN_WAITING_TIME_MS 20000 //20 seconds
 
+// separate step statemachine and lora-status machine for a clearer logic
+// LoraStepJoining_t only take charge of preparing to join.
+// LoraStatus holds for joined or not.
 typedef enum {
-    LORA_STEP_INIT,
     LORA_STEP_SEND_AT,
     LORA_STEP_WAIT_AT_RESPONSE,
     LORA_STEP_SEND_MODE,
@@ -26,19 +28,19 @@ typedef enum {
     LORA_STEP_WAIT_PORT_RESPONSE,
     LORA_STEP_SEND_JOIN,
     LORA_STEP_WAIT_JOIN_RESPONSE,
-    LORA_STEP_JOIN_FAILED_WAIT,
     LORA_STEP_READY
 } LoraStepJoining_t;
 
-// separate step statemachine and lora-status machine for a clearer logic
-static LoraStepJoining_t lora_step_joining = LORA_STEP_INIT;
+
+static LoraStepJoining_t lora_step_joining = LORA_STEP_SEND_AT;
 static LoraStatus_t lora_status = LORA_STATUS_DISCONNECTED;
 static char rx_line_buffer[RX_BUFFER_SIZE];
 static int at_retries = 0;
 static int rx_pos = 0 ;
 static uint32_t step_start_time_ms =0;
 
-// helper function
+// helper functions
+// send_command for "AT+" COMMAND
 void lora_send_command(const char *cmd) {
     rx_pos = 0;
     iuart_send(UART_NR,cmd);
@@ -78,15 +80,16 @@ LoraStatus_t lora_get_status() {
     return lora_status;
 }
 
+// send_message for application layer sending message like "Pill: 1/7"
+// only use after joined LoRa successfully
 bool lora_send_message(const char *msg) {
     if (lora_status != LORA_STATUS_JOINED) {
         return false;
     }
     char cmd[RX_BUFFER_SIZE];
     snprintf(cmd, sizeof(cmd), "AT+MSG=\"%s\"", msg);
-    iuart_send(UART_NR,cmd);
-    iuart_send(UART_NR,"\r\n");
-    printf("[LoRa Tx]%s\n",msg);
+    lora_send_command(cmd);
+    //printf("[LoRa Tx]%s\n",msg);
     return true;
 }
 
@@ -98,15 +101,15 @@ void lora_get_ready_to_join() {
 
         if (lora_step_joining == LORA_STEP_WAIT_JOIN_RESPONSE) {
             // document P36
-            if (strstr(rx_line_buffer, "+JOIN: NetID") || strstr(rx_line_buffer, "+JOIN: Done")) {
-                printf("[LoRa Rx] Joined Successful.");
+            if (strstr(rx_line_buffer, "+JOIN: NetID")) {
+                printf("[LoRa Debug] Joined Successful.");
                 lora_step_joining = LORA_STEP_READY;
                 lora_status = LORA_STATUS_JOINED;
             }
             else if (strstr(rx_line_buffer, "+JOIN: Join failed")) {
-                printf(">>> JOIN FAILED, Retrying in 5s <<<");
+                printf("[LoRa Debug] Join failed.");
                 step_start_time_ms = now;
-                lora_step_joining = LORA_STEP_JOIN_FAILED_WAIT;
+                lora_step_joining = LORA_STEP_SEND_JOIN;
             }
         }
 
@@ -131,10 +134,6 @@ void lora_get_ready_to_join() {
     }
 
     switch (lora_step_joining) {
-        case LORA_STEP_INIT:
-            lora_step_joining = LORA_STEP_SEND_AT;
-            break;
-
         case LORA_STEP_SEND_AT:
             lora_send_command("AT");
             lora_step_joining = LORA_STEP_WAIT_AT_RESPONSE;
@@ -209,12 +208,6 @@ void lora_get_ready_to_join() {
         case LORA_STEP_WAIT_JOIN_RESPONSE:
             if (now - step_start_time_ms > MAX_JOIN_WAITING_TIME_MS) {
                 printf("Join Timeout, retrying...\n");
-                lora_step_joining = LORA_STEP_SEND_JOIN;
-            }
-            break;
-
-        case LORA_STEP_JOIN_FAILED_WAIT:
-            if (now - step_start_time_ms > RESPONSE_TIMEOUT_MS) {
                 lora_step_joining = LORA_STEP_SEND_JOIN;
             }
             break;

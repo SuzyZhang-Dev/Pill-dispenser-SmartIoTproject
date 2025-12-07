@@ -11,7 +11,7 @@
 #include "dispenser.h"
 
 typedef enum {
-    STATE_WELCOME,
+    STATE_WELCOME, // index == 0
     STATE_LORA_CONNECT,
     STATE_MAIN_MENU,
     STATE_SET_PERIOD,
@@ -23,7 +23,7 @@ typedef enum {
 
 AppState_t current_state = STATE_WELCOME;
 uint32_t state_enter_time = 0;
-uint32_t last_input_time = 0;
+//uint32_t last_input_time = 0;
 int setting_period = DEFAULT_PERIOD;
 bool is_lora_enabled = true;
 
@@ -55,10 +55,11 @@ static void system_init() {
 void change_state(AppState_t new_state) {
     current_state = new_state;
     state_enter_time = to_ms_since_boot(get_absolute_time());
-    last_input_time = state_enter_time;
+    //last_input_time = state_enter_time;
     oled_clear();
 }
 
+//这有啥用？
 void sleep_ms_with_lora(uint32_t ms) {
     uint32_t end_time = to_ms_since_boot(get_absolute_time()) + ms;
     while (to_ms_since_boot(get_absolute_time()) < end_time) {
@@ -74,11 +75,13 @@ int main() {
     system_init();
     //dispenser_reset();
     AppState_t last_loop_state = -1;
+    // by defauly, state will try to connect to LoRa automatically.
+    // if user choose not to use it, it ends the procedure.
+    // that makes users wait for shorter time.
     is_lora_enabled = true;
 
     while (true) {
         sleep_ms(20);
-
 
         if (is_lora_enabled) {
             if (lora_get_status() != LORA_STATUS_FAILED) {
@@ -91,18 +94,17 @@ int main() {
         bool is_encoder_pressed = is_encoder_button_pressed();
         uint32_t now = to_ms_since_boot(get_absolute_time());
 
-        if (rot != 0 || is_encoder_pressed) {
-            last_input_time = now;
-        }
+        // if (rot != 0 || is_encoder_pressed) {
+        //     last_input_time = now;
+        // }
 
-        bool is_entry_frame = (current_state != last_loop_state);
+        bool is_state_changed = (current_state != last_loop_state);
         last_loop_state = current_state;
 
         switch (current_state) {
             case STATE_WELCOME:
                 static int mode_index = 0; // 0=With LoRa, 1=Offline
-                bool need_refresh = is_entry_frame;
-
+                bool need_refresh = true;
                 led_set_mode(LED_BLINKING);
 
                 if (rot != 0) {
@@ -137,8 +139,8 @@ int main() {
                 break;
 
             case STATE_LORA_CONNECT:
-                if (is_entry_frame) {
-                    oled_clear();
+                if (is_state_changed) {
+                    //oled_clear();
                     oled_show_string(0, 0, "[ Connecting ]");
                     oled_show_string(0, 3, "Joining LoRaWAN");
                     oled_show_string(0, 5, "Please Wait...");
@@ -151,7 +153,7 @@ int main() {
                     oled_show_string(0, 2, "Success!");
                     oled_show_string(0, 4, "LoRa Online");
                     led_set_mode(LED_ALL_ON);
-                    sleep_ms(3000);
+                    sleep_ms(WELCOME_PAGE_TIMEOUT);
                     change_state(STATE_MAIN_MENU);
                 }
 
@@ -161,7 +163,7 @@ int main() {
                     oled_show_string(0, 4, "Go Offline Mode");
 
                     is_lora_enabled = false;
-                    sleep_ms(2000);
+                    sleep_ms(WELCOME_PAGE_TIMEOUT);
                     change_state(STATE_MAIN_MENU);
                 }
 
@@ -187,24 +189,22 @@ int main() {
             case STATE_MAIN_MENU:
             {
                 static int menu_index = 0;
-                bool need_refresh = is_entry_frame;
+
 
                 if (rot != 0) {
                     menu_index += rot;
                     if (menu_index > 1) menu_index = 0;
                     else if (menu_index < 0) menu_index = 1;
-                    need_refresh = true;
                 }
 
-                if (need_refresh) {
                     oled_show_string(10, 0, "Main menu");
-                    oled_show_string(10, 2, menu_index == 0 ? "> Set Dose  " : "  Set Dose    ");
-                    oled_show_string(10, 4, menu_index == 1 ? "> Get Pills " : "  Get Pills   ");
-                }
+                    oled_show_string(10, 2, menu_index == 0 ? "> Get Pills " : "  Get Pills   ");
+                    oled_show_string(10, 4, menu_index == 1 ? "> Set Dose  " : "  Set Dose    ");
+
 
                 if (is_encoder_pressed) {
-                    if (menu_index == 0) change_state(STATE_SET_PERIOD);
-                    if (menu_index == 1) change_state(STATE_WAIT_CALIBRATE);
+                    if (menu_index == 1) change_state(STATE_SET_PERIOD);
+                    if (menu_index == 0) change_state(STATE_WAIT_CALIBRATE);
                 }
             }
             break;
@@ -212,7 +212,7 @@ int main() {
             case STATE_SET_PERIOD:
             {
                 static int last_drawn_period = -1;
-                if (is_entry_frame) last_drawn_period = -1;
+                if (is_state_changed) last_drawn_period = -1;
 
                 bool is_period_changed = false;
                 if (is_sw2_pressed()) { setting_period++; is_period_changed = true; }
@@ -242,7 +242,8 @@ int main() {
             break;
 
             case STATE_WAIT_CALIBRATE:
-                if (is_entry_frame) {
+                if (is_state_changed) {
+                    // recovery from power off, or pill dispensed is less than setting period
                     if (is_calibrated_dispenser()) {
                         oled_show_string(0, 0, "Resume Calibrate");
                     }else {
@@ -256,16 +257,19 @@ int main() {
                 break;
 
             case STATE_CALIBRATE:
-                if (is_entry_frame) {
+                if (is_state_changed) {
                     if (!is_calibrated_dispenser()) {
                         oled_show_string(0, 4, "Calibrating...");
                         dispenser_calibration();
                     }else {
-                        oled_show_string(0, 4, "Recovery from Poweroff");
+                        oled_show_string(0, 2, "Recovery");
+                        oled_show_string(0, 4, "from Power Off");
                         dispenser_recalibrate_from_poweroff();
                         sleep_ms(1000);
                     }
-
+                    // every time after calibration, no matter is initialization or recovery,
+                    // reset the encoder_pressed to false
+                    // otherwise when after recovery, the dispenser will start without users operation.
                     is_encoder_button_pressed();
 
                     if (is_calibrated_dispenser()) {
@@ -275,14 +279,14 @@ int main() {
                         led_set_mode(LED_ALL_ON);
                     }
                 }
-
+                // wait for users next movement to dispense
                 if (is_calibrated_dispenser() && is_encoder_pressed) {
                     change_state(STATE_DISPENSING);
                 }
                 break;
 
             case STATE_DISPENSING:
-                if (is_entry_frame) {
+                if (is_state_changed) {
                     oled_show_string(0, 0, "Dispensing...");
                     int success_pill_count =0;
                     for (int i = 0; i < setting_period; i++) {
@@ -294,7 +298,8 @@ int main() {
                             success_pill_count++;
                             sleep_ms(PILL_DISPENSE_INTERVAL);
                         }else {
-                            led_blinking_nonblocking(5,200);
+                            led_blinking_error(5,200);
+                            // we do this buz when power off, application automatically recover LoRa connection
                             sleep_ms_with_lora(PILL_DISPENSE_INTERVAL);
                         }
                     }

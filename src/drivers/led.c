@@ -7,7 +7,6 @@ static const uint leds[LEDS_COUNT] = {LED0_GPIO, LED1_GPIO, LED2_GPIO};
 static int current_brightness = BRIGHTNESS_NORMAL;
 static bool is_blinking = false;
 static LedMode current_led_mode = LED_ALL_OFF;
-
 static uint32_t last_toggle_time = 0;
 
 
@@ -34,7 +33,6 @@ void led_init(void) {
         pwm_set_chan_level(slice, channel, 0);
         pwm_set_enabled(slice, true);
     }
-
     current_led_mode = LED_ALL_OFF;
 }
 
@@ -65,6 +63,8 @@ void led_set_mode(LedMode mode) {
     }
 }
 
+// keep blinking as normal brightness(20%) if nothing happens
+// indicates statemachine is waiting for next step
 void led_blink_task(void) {
     if (current_led_mode != LED_BLINKING) return;
 
@@ -75,8 +75,9 @@ void led_blink_task(void) {
         set_pwm_level(is_blinking ? current_brightness : 0);
     }
 }
-
-void led_blinking_nonblocking(int times, int interval) {
+// for error message, e.g.dispense failure or pill not found
+// could define how many times the leds will blink as Error mode(80% brightness)
+void led_blinking_error(int times, int interval) {
     uint32_t old_brightness = current_brightness; // save normal brightness to a new
     LedMode old_mode = current_led_mode;
     led_set_mode(LED_ALL_OFF);
