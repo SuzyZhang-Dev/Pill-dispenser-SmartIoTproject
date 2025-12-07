@@ -2,8 +2,8 @@
 // Created by 张悦 on 1.12.2025.
 //
 
-#ifndef PILLDISPENSER_STATEMACHINE_H
-#define PILLDISPENSER_STATEMACHINE_H
+#ifndef PILLDISPENSER_DISPENSER_H
+#define PILLDISPENSER_DISPENSER_H
 #include "eeprom.h"
 #include "pico/types.h"
 
@@ -22,4 +22,4 @@ void dispenser_reset();
 #define FAILURE_DISPENSE_PROMPT "Failure dispense."
 #define CALIBRATION_ROUNDS 3 //temporary
 
-#endif //PILLDISPENSER_STATEMACHINE_H
+#endif //PILLDISPENSER_DISPENSER_H

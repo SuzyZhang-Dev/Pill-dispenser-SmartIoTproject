@@ -166,10 +166,6 @@ void dispenser_calibration() {
 
 bool do_dispense_single_round() {
     if (!is_calibrated) return false;
-    if (is_dispenser_empty()) {
-        printf("Empty dispenser, need refill.\n");
-        return false;
-    }
 
     DispenserState pre_state;
     state_from_globals(&pre_state, 1);
@@ -225,8 +221,6 @@ bool do_dispense_single_round() {
     }
 }
 
-
-
 void dispenser_recalibrate_from_poweroff() {
     printf("[Recovery] Starting power-off recovery...\n");
     // when do the recalibration, there should be at least one valid state in the eeprom.
@@ -244,37 +238,30 @@ void dispenser_recalibrate_from_poweroff() {
     float steps_per_slot = step_per_revolution / 8.0f; // same as do the first time calibration
     int target_steps_from_home = (int)(target_slot * steps_per_slot);
 
-    printf("[Recovery] Target position: slot %d, %d steps from home\n",target_slot, target_steps_from_home);
+    //printf("[Recovery] Target position: slot %d, %d steps from home\n",target_slot, target_steps_from_home);
     move_to_falling_edge(DISPENSER_BACK_DIRECTION);
     int gap_width = measure_gap_width(DISPENSER_BACK_DIRECTION, 100);
     move_to_center_from_edge(DEFAULT_DISPENSER_ROTATED_DIRECTION, gap_width);
     motor_stop();
 
 
-    printf("[Recovery] Gap width: %d steps\n", gap_width);
-
-
     if (target_steps_from_home > 0) {
-        printf("[Recovery] Step 2: Moving forward %d steps to slot %d...\n",
-               target_steps_from_home, target_slot);
-
         for (int i = 0; i < target_steps_from_home; i++) {
             motor_move_one_step(DEFAULT_DISPENSER_ROTATED_DIRECTION);
         }
     } else {
         printf("[Recovery] Already at home position, no forward movement needed\n");
     }
-
     motor_stop();
 
     is_calibrated = true;
-
     old_state.motor_status = 0;
     save_dispenser_state_to_eeprom(&old_state);
 
-    printf("[Recovery] ✅ Recovery complete! Ready to dispense slot %d\n",pill_dispensed_count + 1);
+    printf("[Recovery]Recovery complete! Ready to dispense slot %d\n",pill_dispensed_count + 1);
     log_write_message("Recovery from power-off successful");
 }
+
 void dispenser_reset() {
     log_erase_all();
     DispenserState clean_state;
