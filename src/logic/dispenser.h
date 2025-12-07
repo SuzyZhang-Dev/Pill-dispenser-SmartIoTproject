@@ -16,6 +16,9 @@ bool is_calibrated_dispenser();
 void dispenser_recalibrate_from_poweroff();
 void dispenser_reset();
 
+void dispenser_set_period(uint8_t period);
+uint8_t dispenser_get_period();
+
 #define DEFAULT_DISPENSER_ROTATED_DIRECTION 1 //clock-wise
 #define DISPENSER_BACK_DIRECTION (-1)
 
