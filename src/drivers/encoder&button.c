@@ -12,7 +12,7 @@ static uint32_t last_press_time = 0;
 static volatile bool is_encoder_pressed = false;
 
 static bool button_debounced(uint gpio, uint32_t *last_press_time) {
-    bool is_pressed = false;
+    bool is_pressed = !gpio_get(gpio);
     uint32_t now = to_ms_since_boot(get_absolute_time());
     if (is_pressed && now - *last_press_time > BUTTON_DEBOUNCE_MS) {
         *last_press_time = now;

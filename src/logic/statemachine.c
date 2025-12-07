@@ -190,14 +190,18 @@ void statemachine_loop(void) {
         case STATE_SET_PERIOD:
         {
             static int last_drawn_period = -1;
-            if (is_state_changed) last_drawn_period = -1;
+
+            if (is_state_changed) {
+                last_drawn_period = -1;
+                setting_period = dispenser_get_period();
+            }
 
             bool is_period_changed = false;
             if (is_sw2_pressed()) { setting_period++; is_period_changed = true; }
             if (is_sw0_pressed()) { setting_period--; is_period_changed = true; }
 
             if (is_period_changed) {
-                if (setting_period > DEFAULT_PERIOD) setting_period = MAX_PERIOD;
+                if (setting_period > MAX_PERIOD) setting_period = MAX_PERIOD;
                 if (setting_period < 1) setting_period = 1;
             }
 
@@ -214,6 +218,7 @@ void statemachine_loop(void) {
             }
 
             if (is_encoder_pressed) {
+                dispenser_set_period((uint8_t)setting_period);
                 change_state(STATE_MAIN_MENU);
             }
         }

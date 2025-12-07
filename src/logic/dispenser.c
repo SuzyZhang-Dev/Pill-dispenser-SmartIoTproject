@@ -274,3 +274,15 @@ void dispenser_reset() {
     log_write_message("System: Factory Reset Performed");
     printf("Factory Reset Complete. Please Restart.\n");
 }
+
+void dispenser_set_period(uint8_t period) {
+    pill_treatment_period = period;
+    DispenserState new_period_state;
+    state_from_globals(&new_period_state, 0);
+    save_dispenser_state_to_eeprom(&new_period_state);
+    printf("[Debug] New period set %d.\n",period);
+}
+
+uint8_t dispenser_get_period() {
+    return pill_treatment_period;
+}
