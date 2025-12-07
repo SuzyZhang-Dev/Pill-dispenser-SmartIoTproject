@@ -3,16 +3,15 @@
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
 
-#define BUTTON_DEBOUNCE_MS 200
-
 static const uint leds[LEDS_COUNT] = {LED0_GPIO, LED1_GPIO, LED2_GPIO};
 static int current_brightness = BRIGHTNESS_NORMAL;
 static bool is_blinking = false;
 static LedMode current_led_mode = LED_ALL_OFF;
-static uint32_t last_toggle_time = 0;
-static uint32_t last_sw0_time = 0;
-static uint32_t last_sw2_time = 0;
 
+static uint32_t last_toggle_time = 0;
+
+
+// for adjusting leds brightness
 static void set_pwm_level(uint16_t level) {
     for (int i = 0; i < LEDS_COUNT; i++) {
         uint slice = pwm_gpio_to_slice_num(leds[i]);
@@ -91,32 +90,3 @@ void led_blinking_nonblocking(int times, int interval) {
     led_set_mode(old_mode);
     leds_set_brightness(old_brightness);
 }
-
-
-void buttons_init() {
-    gpio_init(SW0_GPIO);gpio_set_dir(SW0_GPIO, GPIO_IN);gpio_pull_up(SW0_GPIO);
-    gpio_init(SW1_GPIO);gpio_set_dir(SW1_GPIO, GPIO_IN);gpio_pull_up(SW1_GPIO);
-    gpio_init(SW2_GPIO);gpio_set_dir(SW2_GPIO, GPIO_IN);gpio_pull_up(SW2_GPIO);
-}
-
-bool is_sw0_pressed(void) {
-    bool is_down = !gpio_get(SW0_GPIO);
-    uint32_t now = to_ms_since_boot(get_absolute_time());
-    if (is_down && (now - last_sw0_time > BUTTON_DEBOUNCE_MS)) {
-        last_sw0_time = now;
-        return true;
-    }
-    return false;
-}
-
-bool is_sw2_pressed(void) {
-    bool is_down = !gpio_get(SW2_GPIO);
-    uint32_t now = to_ms_since_boot(get_absolute_time());
-
-    if (is_down && (now - last_sw2_time > BUTTON_DEBOUNCE_MS)) {
-        last_sw2_time = now;
-        return true;
-    }
-    return false;
-}
-

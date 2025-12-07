@@ -6,11 +6,9 @@
 #include "oled.h"
 #include "sensor.h"
 #include "led.h"
-#include "encoder.h"
+#include "encoder&button.h"
 #include "lora.h"
 #include "dispenser.h"
-
-
 
 typedef enum {
     STATE_WELCOME,

@@ -43,14 +43,14 @@
 
 
 // logic layer
-#define PILL_FALL_TIMEOUT_MS 150 // at least 80ms for a pill to fall through
+// at least 80ms for a pill to fall through
+#define PILL_FALL_TIMEOUT_MS 150
+// user could define how long the period between 1-7 days
 #define MAX_PERIOD 7
-#define MAX_DOSE 3
 #define DEFAULT_PERIOD 7
-#define DEFAULT_DOSE 1
 #define WELCOME_PAGE_TIMEOUT 5000
-#define PILL_DISPENSE_INTERVAL 5000 // if success.
-#define PILL_DISPENSE_RETRY 3000 //if any compartments without a pill
-#define MAX_DISPENSE_RETRIES 7
+#define PILL_DISPENSE_INTERVAL 5000 // if success, change to 30s when demo it.
+#define PILL_DISPENSE_RETRY 3000 //if any compartments without a pill, try to turn to another compartment every 3s
+#define MAX_DISPENSE_RETRIES 7 // if tried 7 times after still no pill comes out, that means the dispensr is empty
 
 #endif

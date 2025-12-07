@@ -14,7 +14,8 @@ const bool half_step_sequence[8][4]={
     {1,0,0,1}
 };
 
-// in module scope initialize motor pins, use it directly. and in logic layers no need to declare the instant again.
+// in module scope initialize motor pins, use it directly.
+// and in logic layers no need to declare the instant again.
 const uint motor_pins[4]= MOTOR_PINS;
 
 void set_motor_pins() {
