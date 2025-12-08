@@ -29,26 +29,27 @@ void oled_send_data(uint8_t data) {
     i2c_write_blocking(OLED_I2C_PORT, OLED_ADDR, buf, 2, false);
 }
 
-
+// SSD1306 datasheet P37 command table
+// https://cdn-shop.adafruit.com/datasheets/SSD1306.pdf
 void oled_init_minimal() {
-    oled_send_cmd(0xAE);
-    oled_send_cmd(0x20);
-    oled_send_cmd(0x00);
-    oled_send_cmd(0x8D);
-    oled_send_cmd(0x14);
-    oled_send_cmd(0xA1);
-    oled_send_cmd(0xC8);
-    oled_send_cmd(0xAF);
+    oled_send_cmd(0xAE); // Power off at the beginning
+    oled_send_cmd(0x20); // Memory addressing mode
+    oled_send_cmd(0x00); // Horizontal addressing mode (auto-wrap to next line)
+    oled_send_cmd(0x8D); // Enable internal charge pump
+    oled_send_cmd(0x14); // generate voltage from 3.3v to 7v around
+    oled_send_cmd(0xA1); // mirror display
+    oled_send_cmd(0xC8); // mirror display vertically
+    oled_send_cmd(0xAF);// Power on
 }
 
 
 void oled_clear() {
-    oled_send_cmd(0x21);
-    oled_send_cmd(0);
-    oled_send_cmd(127);
-    oled_send_cmd(0x22);
-    oled_send_cmd(0);
-    oled_send_cmd(7);
+    oled_send_cmd(0x21); // set column address
+    oled_send_cmd(0); // from column 0
+    oled_send_cmd(127); // to colum 127
+    oled_send_cmd(0x22); // set page address
+    oled_send_cmd(0); //from page 0 (8 pixels)
+    oled_send_cmd(7); //to page 7
 
     for (int i = 0; i < 128 * 8; i++) {
         oled_send_data(0x00);
