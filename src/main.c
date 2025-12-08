@@ -16,6 +16,7 @@ static void system_init() {
     sleep_ms(2000);
     gpio_set_irq_callback(&statemachine_gpio_callback);
     irq_set_enabled(IO_IRQ_BANK0, true);
+    // initialize drivers
     led_init();
     buttons_init();
     encoder_init();
@@ -23,6 +24,7 @@ static void system_init() {
     sensor_init();
     dispenser_init();
     lora_init();
+    statemachine_init();
     oled_init();
     oled_init_minimal();
     oled_clear();

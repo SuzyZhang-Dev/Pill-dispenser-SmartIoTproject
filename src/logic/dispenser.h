@@ -18,6 +18,10 @@ void dispenser_reset();
 
 void dispenser_set_period(uint8_t period);
 uint8_t dispenser_get_period();
+uint8_t dispenser_get_dispensed_count();
+bool dispenser_was_motor_running_at_boot();
+void dispenser_clear_boot_flag();
+
 
 #define DEFAULT_DISPENSER_ROTATED_DIRECTION 1 //clock-wise
 #define DISPENSER_BACK_DIRECTION (-1)

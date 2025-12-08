@@ -33,7 +33,7 @@ Project Workflow:
 flowchart TD
 A[Power on<br/>OLED shows welcome message<br/>LED blinking at 30% brightness<br/>Waiting for encoder press] --> B[User presses encoder<br/>Enter dosage setup]
 
-    B --> C[Set dosage per intake (X pills)<br/>Rotate encoder to adjust value]
+    B --> C[Set dosage per intake<br/>Rotate encoder to adjust value]
     C --> D[Press encoder again to confirm dosage]
 
     D --> E[Screen shows “Ready for calibration”<br/>LED keeps blinking]

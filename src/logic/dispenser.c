@@ -15,6 +15,7 @@ static float step_per_revolution = 4096.0f;
 static int max_recovery_step = 4096;
 static uint8_t pill_dispensed_count = 0;
 static uint8_t pill_treatment_period = 7;
+static bool motor_running_at_boot = false;
 
 //helper functions to change states in eeprom
 static void state_from_globals(DispenserState *s, uint8_t motor_status) {
@@ -57,7 +58,6 @@ static int measure_gap_width(int direction, int max_steps) {
 
 static void move_to_center_from_edge(int direction, int gap_width) {
     int steps_to_center = gap_width / 2;
-    printf("[Align] Moving %d steps to center...\n", steps_to_center);
     for (int i = 0; i < steps_to_center; i++) {
         motor_move_one_step(direction);
         sleep_ms(1);
@@ -98,11 +98,14 @@ void dispenser_init() {
         log_write_message(log_message);
 
         if (old_state.motor_status == 1) {
+            motor_running_at_boot = true;
             lora_send_message("BOOT:POWEROFF_DETECTED");
         } else {
+            motor_running_at_boot = false;
             lora_send_message("BOOT:NORMAL");
         }
     } else {
+        motor_running_at_boot = false;
         is_calibrated = false;
         step_per_revolution = 4096.0f;
         pill_dispensed_count = 0;
@@ -263,7 +266,7 @@ void dispenser_recalibrate_from_poweroff() {
 }
 
 void dispenser_reset() {
-    log_erase_all();
+    //log_erase_all();
     DispenserState clean_state;
     state_from_globals(&clean_state, 0);
     save_dispenser_state_to_eeprom(&clean_state);
@@ -285,4 +288,14 @@ void dispenser_set_period(uint8_t period) {
 
 uint8_t dispenser_get_period() {
     return pill_treatment_period;
+}
+uint8_t dispenser_get_dispensed_count() {
+    return pill_dispensed_count;
+}
+
+bool dispenser_was_motor_running_at_boot() {
+    return motor_running_at_boot;
+}
+void dispenser_clear_boot_flag() {
+    motor_running_at_boot = false;
 }

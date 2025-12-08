@@ -61,6 +61,15 @@ void statemachine_init(void) {
     // if user choose not to use it, it ends the procedure.
     // that makes users wait for shorter time.
     is_lora_enabled = true;
+
+    if (dispenser_was_motor_running_at_boot()) {
+        printf("[Boot] Power-off recovery detected. Skipping menu.\n");
+        current_state = STATE_WAIT_CALIBRATE;
+    } else {
+        current_state = STATE_WELCOME;
+    }
+
+    state_enter_time = to_ms_since_boot(get_absolute_time());
 }
 
 void statemachine_loop(void) {
@@ -118,7 +127,6 @@ void statemachine_loop(void) {
 
         case STATE_LORA_CONNECT:
             if (is_state_changed) {
-                //oled_clear();
                 oled_show_string(0, 0, "[ Connecting ]");
                 oled_show_string(0, 3, "Joining LoRaWAN");
                 oled_show_string(0, 5, "Please Wait...");
@@ -156,7 +164,6 @@ void statemachine_loop(void) {
                 change_state(STATE_MAIN_MENU);
             }
 
-
             if (is_encoder_pressed) {
                 printf("[User] Cancelled LoRa joining.\n");
                 is_lora_enabled = false;
@@ -167,7 +174,6 @@ void statemachine_loop(void) {
         case STATE_MAIN_MENU:
         {
             static int menu_index = 0;
-
 
             if (rot != 0) {
                 menu_index += rot;
@@ -226,14 +232,38 @@ void statemachine_loop(void) {
 
         case STATE_WAIT_CALIBRATE:
             if (is_state_changed) {
-                // recovery from power off, or pill dispensed is less than setting period
+                led_set_mode(LED_BLINKING);
                 if (is_calibrated_dispenser()) {
-                    oled_show_string(0, 0, "Resume Calibrate");
-                }else {
-                    oled_show_string(0, 0, "Init Calibrate");
+                    // recovery from power off, or pill dispensed is less than setting period
+                    if (dispenser_was_motor_running_at_boot()) {
+                        oled_clear();
+                        oled_show_string(0, 0, "[ POWER LOSS ]");
+                        oled_show_string(0, 2, "Auto-Recalib");
+                        oled_show_string(0, 4, "in 5 seconds...");
+                        oled_show_string(0, 6, "Keep Hands Away");
+
+
+                        for (int i = POWER_ON_WARNING_TIME/1000; i > 0; i--) {
+                            char count_buf[16];
+                            sprintf(count_buf, "in %d seconds...", i);
+                            oled_show_string(0, 4, count_buf);
+                            led_blinking_error(5,100);
+                        }
+                        change_state(STATE_CALIBRATE);
+                        break;
+                    }
+                    else {
+                        oled_show_string(0, 0, "System Resume");
+                        oled_show_string(0, 2, "Press to Align");
+                    }
                 }
-                oled_show_string(0, 2, "Press to Start");
+
+                else {
+                    oled_show_string(0, 0, "Init Calibrate");
+                    oled_show_string(0, 2, "Press to Start");
+                }
             }
+
             if (is_encoder_pressed) {
                 change_state(STATE_CALIBRATE);
             }
@@ -241,25 +271,41 @@ void statemachine_loop(void) {
 
         case STATE_CALIBRATE:
             if (is_state_changed) {
+                led_set_mode(LED_BLINKING);
+                bool need_manual_start = false;
                 if (!is_calibrated_dispenser()) {
                     oled_show_string(0, 4, "Calibrating...");
                     dispenser_calibration();
-                }else {
-                    oled_show_string(0, 2, "Recovery");
-                    oled_show_string(0, 4, "from Power Off");
+                } else {
+                    if (dispenser_was_motor_running_at_boot()) {
+                        oled_show_string(0, 2, "Recovery");
+                        oled_show_string(0, 4, "from Power Off");
+                        need_manual_start = true;
+                    }else {
+                        oled_show_string(0, 2, "Re-calibration");
+                        oled_show_string(0, 4, "Need More Pills");
+                        need_manual_start = false;
+                    }
                     dispenser_recalibrate_from_poweroff();
+                    dispenser_clear_boot_flag();
                     sleep_ms(1000);
                 }
+
                 // every time after calibration, no matter is initialization or recovery,
                 // reset the encoder_pressed to false
                 // otherwise when after recovery, the dispenser will start without users operation.
                 is_encoder_button_pressed();
 
                 if (is_calibrated_dispenser()) {
-                    oled_clear();
-                    oled_show_string(0, 2, "Done!");
-                    oled_show_string(0, 4, "Press to Run");
-                    led_set_mode(LED_ALL_ON);
+                    if (need_manual_start) {
+                        sleep_ms(1000);
+                        change_state(STATE_DISPENSING);
+                    }else {
+                        oled_clear();
+                        oled_show_string(0, 2, "Done!");
+                        oled_show_string(0, 4, "Press to Run");
+                        led_set_mode(LED_ALL_ON);
+                    }
                 }
             }
             // wait for users next movement to dispense
@@ -269,30 +315,77 @@ void statemachine_loop(void) {
             break;
 
         case STATE_DISPENSING:
+            led_set_mode(LED_ALL_OFF);
             if (is_state_changed) {
                 oled_show_string(0, 0, "Dispensing...");
-                int success_pill_count =0;
-                for (int i = 0; i < setting_period; i++) {
+                setting_period = dispenser_get_period();
+                char buf[16];
+                int success_pill_count = dispenser_get_dispensed_count();
+                int failure_pill_count = 0;
+                int total_pills_need = setting_period;
+
+                sprintf(buf,"PILL: %d/%d",success_pill_count,setting_period);
+                oled_show_string(0, 4, buf);
+                for (int i = success_pill_count; i < setting_period; i++) {
                     bool result = do_dispense_single_round();
                     if (!is_calibrated_dispenser()) {
                         break;
                     }
                     if (result) {
                         success_pill_count++;
-                        sleep_ms(PILL_DISPENSE_INTERVAL);
+                        sprintf(buf, "PILL: %d/%d", success_pill_count, setting_period);
+                        oled_show_string(0, 4, buf);
+
+                        int dispensed = dispenser_get_dispensed_count();
+                        if (dispensed == total_pills_need -1) {
+                            oled_show_string(0, 6, "Need Refill");
+                        }
+                        sleep_ms_with_lora(PILL_DISPENSE_INTERVAL);
+                        oled_show_string(0, 6, "                ");
+
                     }else {
+                        failure_pill_count++;
+                        if (failure_pill_count>= MAX_DISPENSE_RETRIES) {
+                            change_state(STATE_FAULT_CHECK);
+                            return;
+                        }
                         led_blinking_error(5,200);
                         // we do this buz when power off, application automatically recover LoRa connection
                         sleep_ms_with_lora(PILL_DISPENSE_INTERVAL);
                     }
                 }
-                oled_show_string(0, 2, "Finished!");
+                oled_show_string(0, 4, "Finished!             ");
                 sleep_ms(2000);
                 change_state(STATE_MAIN_MENU);
             }
             break;
 
         case STATE_FAULT_CHECK:
+            if (is_state_changed) {
+                oled_clear();
+                oled_show_string(0, 0, "[ EMPTY! ]");
+                oled_show_string(0, 2, "Dispenser Empty");
+                oled_show_string(0, 4, "Please Refill");
+                oled_show_string(0, 6, "Press to Reset");
+
+
+                if (is_lora_enabled) {
+                    lora_send_message("ALARM:EMPTY");
+                }
+                led_set_mode(LED_BLINKING);
+                leds_set_brightness(BRIGHTNESS_ERROR_OCCUR);
+            }
+
+            if (is_encoder_pressed) {
+                leds_set_brightness(BRIGHTNESS_NORMAL);
+                led_set_mode(LED_ALL_OFF);
+                dispenser_reset();
+                if (is_lora_enabled) {
+                    lora_send_message("STATUS:RESET");
+                }
+                change_state(STATE_MAIN_MENU);
+            }
+
             break;
     }
 }
