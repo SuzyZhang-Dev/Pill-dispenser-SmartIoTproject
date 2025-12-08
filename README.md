@@ -1,5 +1,3 @@
-# Pill Dispenser IoT Project
-
 # Pill Dispenser SmartIoT Project
 
 This is a Smart IoT Pill Dispenser project based on the Raspberry Pi Pico W. The device is designed to automatically dispense medication according to a set schedule. It features a local user interface with an OLED display and rotary encoder, and supports LoRaWAN connectivity for remote monitoring of device status and dispensing records.
