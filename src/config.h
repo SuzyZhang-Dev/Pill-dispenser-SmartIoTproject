@@ -48,10 +48,12 @@
 // user could define how long the period between 1-7 days
 #define MAX_PERIOD 7
 #define DEFAULT_PERIOD 7
-#define WELCOME_PAGE_TIMEOUT 2000
+#define PAGE_TIMEOUT 2000
+
 #define PILL_DISPENSE_INTERVAL 10000 // if success, change to 30s when demo it.
 #define PILL_DISPENSE_RETRY 3000 //if any compartments without a pill, try to turn to another compartment every 3s
 #define MAX_DISPENSE_RETRIES 7 // if tried 7 times after still no pill comes out, that means the dispensr is empty
 #define POWER_ON_WARNING_TIME 10000
+#define MAX_LORA_WAIT_TIMEOUT 10000
 
 #endif

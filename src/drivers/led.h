@@ -18,6 +18,7 @@ typedef enum {
 #define BRIGHTNESS_NORMAL 200 // don't be so bright
 #define BRIGHTNESS_ERROR_OCCUR 800
 #define BLINK_INTERVAL_MS 500
+#define BlINK_INTERVAL_RECALIB 100
 
 void led_init(void);
 void leds_set_brightness(uint16_t brightness);

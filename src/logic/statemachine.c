@@ -10,24 +10,29 @@
 #include "encoder&button.h"
 #include "lora.h"
 #include "dispenser.h"
+#include "hardware/structs/vreg_and_chip_reset.h"
 
 typedef enum {
-    STATE_WELCOME, // index == 0
-    STATE_LORA_CONNECT,
-    STATE_MAIN_MENU,
-    STATE_SET_PERIOD,
-    STATE_WAIT_CALIBRATE,
-    STATE_CALIBRATE,
-    STATE_DISPENSING,
-    STATE_FAULT_CHECK
+    STATE_WELCOME, // index == 0,user select with lora or run in offline
+    STATE_LORA_CONNECT, // system attempts to join lora
+    STATE_MAIN_MENU, // user get period or go get pills directly
+    STATE_SET_PERIOD, // if user wants to set their own period
+    STATE_WAIT_CALIBRATE, // wait user to confirm at first initializing calibration
+    STATE_CALIBRATE, // perform the calibration
+    STATE_DISPENSING, // dispensing the pills one by one and lora reporting (if allow)
+    STATE_FAULT_CHECK // try max 7 times to get enough pills, if not, show empty warning
 } AppState_t;
 
 AppState_t current_state = STATE_WELCOME;
 uint32_t state_enter_time = 0;
 int setting_period = DEFAULT_PERIOD;
+// set the lora as default enable, backend system will try to connect lora anyway.
 bool is_lora_enabled = true;
+// these two variables to help statemachine marks
 static bool has_sent_boot_message = false;
-static bool is_power_loss_recovery = false;
+static bool is_recovery_mode = false;
+// check if user press reset button
+static bool is_reset_button_event = false;
 
 //if we use encoder, there is a conflict using encoder interrupt with callback.
 //set a whole callback handler for main logic
@@ -36,13 +41,14 @@ void statemachine_gpio_callback(uint gpio, uint32_t events) {
     piezo_irq_handler(gpio, events);
 }
 
-
 static void change_state(AppState_t new_state) {
     current_state = new_state;
     state_enter_time = to_ms_since_boot(get_absolute_time());
     oled_clear();
 }
 
+// sleep that keeps lora alive
+// the function make sure Lora would not block
 void sleep_ms_with_lora(uint32_t ms) {
     uint32_t end_time = to_ms_since_boot(get_absolute_time()) + ms;
     while (to_ms_since_boot(get_absolute_time()) < end_time) {
@@ -50,7 +56,6 @@ void sleep_ms_with_lora(uint32_t ms) {
             lora_get_ready_to_join();
         }
         led_blink_task();
-        //watchdog_update();
         sleep_ms(10);
     }
 }
@@ -65,28 +70,51 @@ void statemachine_init(void) {
     is_lora_enabled = true;
     has_sent_boot_message = false;
 
-    if (dispenser_was_motor_running_at_boot()) {
+    // check is the reboot by reset button, using the hardware register
+    uint32_t reset_reason = vreg_and_chip_reset_hw->chip_reset;
+    // check POR(power-on-reset) bit, if it is set, indicate the syetem reboot from power off
+    if (reset_reason & VREG_AND_CHIP_RESET_CHIP_RESET_HAD_POR_BITS) {
+        is_reset_button_event = false;
+        // must clear it for next so that we can detect it next time
+        hw_clear_bits(&vreg_and_chip_reset_hw->chip_reset, VREG_AND_CHIP_RESET_CHIP_RESET_HAD_POR_BITS);
+    } else {
+        // POR is not set, power is always on, just press reset button
+        is_reset_button_event = true;
+    }
+
+    // to check if reset button is pressed, does the system have an ongoing task.
+    // the dispensed pills has not reach the target period
+    bool is_task_incomplete = is_calibrated_dispenser() && (dispenser_get_dispensed_count()<dispenser_get_period());
+
+    // turning power cut or reset button
+    if (dispenser_was_motor_running_at_boot() || is_task_incomplete) {
         printf("[Boot] Power-off recovery detected. Skipping menu.\n");
         current_state = STATE_WAIT_CALIBRATE;
-        is_power_loss_recovery = true;
+        // any incomplete task marks as true, no matter from power off or reset
+        is_recovery_mode = true;
     } else {
         current_state = STATE_WELCOME;
-        is_power_loss_recovery = false;
+        is_recovery_mode = false;
     }
 
     state_enter_time = to_ms_since_boot(get_absolute_time());
 }
 
 void statemachine_loop(void) {
+    // try at the first no matter user choose or not
     if (is_lora_enabled) {
         if (lora_get_status() != LORA_STATUS_FAILED) {
             lora_get_ready_to_join();
         }
-
+        // after joining lora, send Boot message first
         if (lora_get_status() == LORA_STATUS_JOINED && !has_sent_boot_message) {
             bool send_success;
-            if (is_power_loss_recovery) {
-                send_success = lora_send_message("BOOT:POWEROFF_DETECTED");
+            if (is_recovery_mode) {
+                if (is_reset_button_event) {
+                    send_success = lora_send_message("BOOT:RESET_RESUME");
+                }else {
+                    send_success = lora_send_message("BOOT:POWEROFF_DETECTED");
+                }
             } else {
                 send_success = lora_send_message("BOOT:NORMAL");
             }
@@ -102,9 +130,11 @@ void statemachine_loop(void) {
     int rot = get_encoder_rotation();
     bool is_encoder_pressed = is_encoder_button_pressed();
     uint32_t now = to_ms_since_boot(get_absolute_time());
-    // only set the statemachine as -1 at the very first time enter the system
+    // only set the statemachine as invalid state index -1
     static AppState_t last_loop_state = -1;
+    // very first time enter the system, this will be true
     bool is_state_changed = (current_state != last_loop_state);
+    // update history for next loop
     last_loop_state = current_state;
 
     switch (current_state) {
@@ -158,7 +188,7 @@ void statemachine_loop(void) {
                 oled_show_string(0, 2, "Success!");
                 oled_show_string(0, 4, "LoRa Online");
                 led_set_mode(LED_ALL_ON);
-                sleep_ms(WELCOME_PAGE_TIMEOUT);
+                sleep_ms(PAGE_TIMEOUT);
                 change_state(STATE_MAIN_MENU);
             }
 
@@ -168,18 +198,18 @@ void statemachine_loop(void) {
                 oled_show_string(0, 4, "Go Offline Mode");
 
                 is_lora_enabled = false;
-                sleep_ms(WELCOME_PAGE_TIMEOUT);
+                sleep_ms(PAGE_TIMEOUT);
                 change_state(STATE_MAIN_MENU);
             }
 
-            else if (now - state_enter_time > 20000) {
+            else if (now - state_enter_time > MAX_LORA_WAIT_TIMEOUT) {
                 oled_clear();
                 oled_show_string(0, 2, "Timeout!");
                 oled_show_string(0, 4, "Go Offline Mode");
 
                 is_lora_enabled = false;
 
-                sleep_ms(2000);
+                sleep_ms(PAGE_TIMEOUT);
                 change_state(STATE_MAIN_MENU);
             }
 
@@ -214,6 +244,7 @@ void statemachine_loop(void) {
 
         case STATE_SET_PERIOD:
         {
+            // only when user change the period, reload the oled, release CPU load
             static int last_drawn_period = -1;
 
             if (is_state_changed) {
@@ -234,7 +265,7 @@ void statemachine_loop(void) {
                 oled_clear();
                 oled_show_string(0, 0, "Set Period");
                 oled_show_string(0, 4, "Max 7 days");
-                oled_show_string(0, 6, "SW0- SW2+ E<-");
+                oled_show_string(0, 6, "SW0- SW2+ Y->");
 
                 char buf[16];
                 sprintf(buf, "%d", setting_period);
@@ -243,6 +274,7 @@ void statemachine_loop(void) {
             }
 
             if (is_encoder_pressed) {
+                // pass the set period to other functions
                 dispenser_set_period((uint8_t)setting_period);
                 change_state(STATE_MAIN_MENU);
             }
@@ -253,24 +285,28 @@ void statemachine_loop(void) {
             if (is_state_changed) {
                 led_set_mode(LED_BLINKING);
                 if (is_calibrated_dispenser()) {
-                    if (dispenser_was_motor_running_at_boot()) {
+                    if (is_recovery_mode) {
                         oled_clear();
-                        oled_show_string(0, 0, "[ POWER LOSS ]");
+                        if (is_reset_button_event) {
+                            oled_show_string(0, 0, "[ Reset ]");
+                        }else {
+                            oled_show_string(0, 0, "[ POWER LOSS ]");
+                        }
                         oled_show_string(0, 2, "Auto-Recalib");
-                        oled_show_string(0, 4, "in 5 seconds...");
+                        oled_show_string(0, 4, "in 10 seconds...");
                         oled_show_string(0, 6, "Keep Hands Away");
 
-                        for (int i = POWER_ON_WARNING_TIME/1000; i > 0; i--) {
+                        for (int i = POWER_ON_WARNING_TIME / 1000; i > 0; i--) {
                             char count_buf[16];
                             sprintf(count_buf, "in %d seconds...", i);
                             oled_show_string(0, 4, count_buf);
 
                             leds_set_brightness(BRIGHTNESS_ERROR_OCCUR);
-                            for(int k=0; k<10; k++) {
+                            for(int k=0; k< 1000 /(BlINK_INTERVAL_RECALIB*2); k++) {
                                 led_set_mode(LED_ALL_ON);
-                                sleep_ms_with_lora(100);
+                                sleep_ms_with_lora(BlINK_INTERVAL_RECALIB);
                                 led_set_mode(LED_ALL_OFF);
-                                sleep_ms_with_lora(100);
+                                sleep_ms_with_lora(BlINK_INTERVAL_RECALIB);
                             }
                         }
 
@@ -279,30 +315,36 @@ void statemachine_loop(void) {
                             oled_show_string(0, 0, "Wait Network...");
                             oled_show_string(0, 2, "Sending Status");
 
-                            int wait_retries = 2000;
+                            int wait_retries = MAX_JOIN_WAITING_TIME_MS / LORA_RETRY_INTERVAL_MS;
+                            // we wait here buz if the user want lora,
+                            // If we start the motor now, CPU usage might kill the LoRa connection.
                             while (wait_retries > 0) {
                                 LoraStatus_t status = lora_get_status();
-
 
                                 if (status == LORA_STATUS_JOINED) {
                                     oled_show_string(0, 4, "Joined!       ");
                                     sleep_ms_with_lora(1500);
 
-                                    if (lora_send_message("BOOT:POWEROFF_DETECTED")) {
-                                        has_sent_boot_message = true;
-                                        printf("[Statemachine] Boot message sent before recalib.\n");
-                                        oled_show_string(0, 6, "Sent OK       ");
-                                        sleep_ms_with_lora(1000);
+                                    if (is_reset_button_event) {
+                                        lora_send_message("BOOT:RESET_RESUME");
+                                    } else {
+                                        lora_send_message("BOOT:POWEROFF_DETECTED");
                                     }
+                                    has_sent_boot_message = true;
+
+                                    printf("[Statemachine] Boot message sent before recalib.\n");
+                                    oled_show_string(0, 6, "Sent OK       ");
+                                    sleep_ms_with_lora(PAGE_TIMEOUT);
+
                                     break;
                                 }
                                 else if (status == LORA_STATUS_FAILED) {
                                     oled_show_string(0, 4, "Join Failed   ");
-                                    sleep_ms_with_lora(1000);
+                                    sleep_ms_with_lora(PAGE_TIMEOUT);
                                     break;
                                 }
 
-                                sleep_ms_with_lora(10);
+                                sleep_ms_with_lora(LORA_RETRY_INTERVAL_MS);
                                 wait_retries--;
                             }
                         }
@@ -330,23 +372,20 @@ void statemachine_loop(void) {
         case STATE_CALIBRATE:
             if (is_state_changed) {
                 led_set_mode(LED_BLINKING);
-                bool need_manual_start = false;
                 if (!is_calibrated_dispenser()) {
                     oled_show_string(0, 4, "Calibrating...");
                     dispenser_calibration();
                 } else {
-                    if (dispenser_was_motor_running_at_boot()) {
+                    if (is_recovery_mode) {
                         oled_show_string(0, 2, "Recovery");
-                        oled_show_string(0, 4, "from Power Off");
-                        need_manual_start = true;
+                        oled_show_string(0, 4, is_reset_button_event ? "from Reset" : "from Power Off");
                     }else {
                         oled_show_string(0, 2, "Re-calibration");
                         oled_show_string(0, 4, "Need More Pills");
-                        need_manual_start = false;
                     }
                     dispenser_recalibrate_from_poweroff();
                     dispenser_clear_boot_flag();
-                    sleep_ms(1000);
+                    sleep_ms(PAGE_TIMEOUT);
                 }
 
                 // every time after calibration, no matter is initialization or recovery,
@@ -355,8 +394,8 @@ void statemachine_loop(void) {
                 is_encoder_button_pressed();
 
                 if (is_calibrated_dispenser()) {
-                    if (need_manual_start) {
-                        sleep_ms(1000);
+                    if (is_recovery_mode) {
+                        sleep_ms(PAGE_TIMEOUT);
                         change_state(STATE_DISPENSING);
                     }else {
                         oled_clear();
@@ -378,14 +417,16 @@ void statemachine_loop(void) {
                 oled_show_string(0, 0, "Dispensing...");
                 setting_period = dispenser_get_period();
                 char buf[16];
+                // get it from eeprom
                 int success_pill_count = dispenser_get_dispensed_count();
                 int failure_pill_count = 0;
+                // we set a separate variable considering the empty compartments occurs
                 int total_pills_need = setting_period;
 
                 sprintf(buf,"PILL: %d/%d",success_pill_count,setting_period);
                 oled_show_string(0, 4, buf);
+                // the task will finish only when the user get enough pills
                 while (success_pill_count<total_pills_need) {
-
                     if (!is_calibrated_dispenser()) {
                         break;
                     }
@@ -394,7 +435,7 @@ void statemachine_loop(void) {
                         success_pill_count++;
                         sprintf(buf, "PILL: %d/%d", success_pill_count, setting_period);
                         oled_show_string(0, 4, buf);
-
+                        // show a warning when the next days is the last day in the period
                         int dispensed = dispenser_get_dispensed_count();
                         if (dispensed == total_pills_need -1) {
                             oled_show_string(0, 6, "Need Refill");
@@ -405,6 +446,7 @@ void statemachine_loop(void) {
 
                     }else {
                         failure_pill_count++;
+                        // allow 7 times retry
                         if (failure_pill_count>= MAX_DISPENSE_RETRIES) {
                             change_state(STATE_FAULT_CHECK);
                             return;
@@ -417,12 +459,13 @@ void statemachine_loop(void) {
                 }
 
                 if (is_lora_enabled) {
-                    sleep_ms_with_lora(3000);
+                    sleep_ms_with_lora(PAGE_TIMEOUT);
                     lora_send_message("EMPTY");
                 }
 
                 oled_show_string(0, 4, "Finished!             ");
-                sleep_ms(5000);
+                is_recovery_mode = false;
+                sleep_ms(PAGE_TIMEOUT);
                 change_state(STATE_MAIN_MENU);
             }
             break;
@@ -448,13 +491,16 @@ void statemachine_loop(void) {
             if (is_encoder_pressed) {
                 leds_set_brightness(BRIGHTNESS_NORMAL);
                 led_set_mode(LED_ALL_OFF);
-                dispenser_reset();
+                //dispenser_reset();
                 if (is_lora_enabled) {
-                    sleep_ms_with_lora(3000);
+                    sleep_ms_with_lora(5000);
                     lora_send_message("STATUS:RESET");
-                    sleep_ms_with_lora(3000);
+                    sleep_ms_with_lora(5000);
                 }
-                change_state(STATE_MAIN_MENU);
+                // pretend it is recovery from reset, buz the period is not done yet
+                is_recovery_mode = true;
+                is_reset_button_event = true;
+                change_state(STATE_CALIBRATE);
             }
 
             break;

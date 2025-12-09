@@ -10,7 +10,7 @@
 #define RX_BUFFER_SIZE 128
 #define RESPONSE_TIMEOUT_MS 5000 //waits for response for 5s
 #define MAX_AT_RETRIES 5 //try 5 times and if not, back to STEP 1
-#define MAX_JOIN_WAITING_TIME_MS 20000 //20 seconds
+
 
 // separate step statemachine and lora-status machine for a clearer logic
 // LoraStepJoining_t only take charge of preparing to join.

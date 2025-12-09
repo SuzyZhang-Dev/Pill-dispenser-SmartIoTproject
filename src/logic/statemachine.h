@@ -10,4 +10,5 @@ void statemachine_init(void);
 void statemachine_loop(void);
 void statemachine_gpio_callback(uint gpio, uint32_t events);
 void sleep_ms_with_lora(uint32_t ms);
+
 #endif //PILLDISPENSER_STATEMACHINE_H

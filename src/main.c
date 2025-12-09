@@ -14,6 +14,7 @@
 static void system_init() {
     stdio_init_all();
     sleep_ms(2000);
+    // program have two interrupt handler (encoder and pizeto sensor)
     gpio_set_irq_callback(&statemachine_gpio_callback);
     irq_set_enabled(IO_IRQ_BANK0, true);
     // initialize drivers
@@ -35,8 +36,7 @@ static void system_init() {
 
 int main() {
     system_init();
-    //watchdog_enable(8000, true);
-    sleep_ms(3000);
+    sleep_ms(3000); // leave 3s for opening serial
 
     while (true) {
         statemachine_loop();

@@ -20,5 +20,7 @@ LoraStatus_t lora_get_status();
 bool lora_send_message(const char *msg);
 void lora_get_ready_to_join();
 
+#define MAX_JOIN_WAITING_TIME_MS 20000 //20 seconds and expose to statemachine.c
+#define LORA_RETRY_INTERVAL_MS 10
 
 #endif //PILLDISPENSER_LORA_H

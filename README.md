@@ -99,79 +99,84 @@ Pill_Dispenser_Project/
 Project Workflow:
 ```mermaid
 flowchart TD
-    %% Node Definitions
-    Start((Power On))
-    Init[System Init<br/>Load EEPROM State]
-    CheckPowerOff{Power-off<br/>Recovery?}
-    
-    %% Welcome State
+%% Node Definitions
+    Start((System Start))
+    Init[System Init<br/>Load EEPROM & Check Reset Cause]
+
+    CheckRecovery{Recovery Mode?}
+
+%% Welcome State (Normal Boot)
     StateWelcome[<b>STATE_WELCOME</b><br/>Select Mode via Encoder]
     StateLora[<b>STATE_LORA_CONNECT</b><br/>Joining LoRaWAN...]
-    
-    %% Main Menu
+
+%% Main Menu
     StateMenu[<b>STATE_MAIN_MENU</b><br/>1. Get Pills<br/>2. Set Dose]
     StateSetPeriod[<b>STATE_SET_PERIOD</b><br/>Adjust Dosage Period 1-7]
-    
-    %% Calibration Flow
-    StateWaitCalib[<b>STATE_WAIT_CALIBRATE</b><br/>Ready to Start/Resume]
+
+%% Calibration Flow (Auto or Manual)
+    StateWaitCalib[<b>STATE_WAIT_CALIBRATE</b>]
     StateCalib[<b>STATE_CALIBRATE</b><br/>Running Calibration<br/>or Recovery Routine]
-    
-    %% Dispensing Flow
+
+%% Dispensing Flow
     StateDispense[<b>STATE_DISPENSING</b><br/>Dispensing Loop]
     CheckSuccess{Pill Dropped?}
     RetryCheck{Max Retries<br/>Reached?}
-    LoopCheck{All Pills<br/>Dispensed?}
-    
-    %% Fault State
+    LoopCheck{Target Count<br/>Reached?}
+
+%% Fault State
     StateFault[<b>STATE_FAULT_CHECK</b><br/>Error: DISPENSER EMPTY<br/>Send LoRa Alarm]
-    ResetAction[User Press Encoder<br/>to Reset]
+    ResumeAction[User Refills &<br/>Press Encoder to Resume]
 
-    %% Logic Connections
-    Start --> Init --> CheckPowerOff
-    
-    %% Power-off Recovery Logic
-    CheckPowerOff -- Yes --> StateWaitCalib
-    CheckPowerOff -- No --> StateWelcome
-    
-    %% Mode Selection
-    StateWelcome -- Mode: With LoRa --> StateLora
-    StateWelcome -- Mode: Offline --> StateMenu
-    
-    StateLora -- Success/Fail/Timeout --> StateMenu
-    
-    %% Menu Navigation
-    StateMenu -- Select: Set Dose --> StateSetPeriod
-    StateSetPeriod -- Confirm --> StateMenu
-    
-    StateMenu -- Select: Get Pills --> StateWaitCalib
-    StateWaitCalib -- Encoder Press --> StateCalib
-    
-    StateCalib -- Calibration Complete --> StateDispense
-    
-    %% Dispensing Logic
-    StateDispense --> CheckSuccess
-    
-    CheckSuccess -- Yes --> LoopCheck
-    CheckSuccess -- No --> RetryCheck
-    
-    %% Retry Mechanism
-    RetryCheck -- No (Retry) --> StateDispense
-    RetryCheck -- Yes (Fault) --> StateFault
-    
-    %% Loop Continuation
-    LoopCheck -- No (Next Pill) --> StateDispense
-    LoopCheck -- Yes (Job Finished) --> StateMenu
-    
-    %% Fault Recovery
-    StateFault -- User Confirms --> ResetAction
-    ResetAction --> StateWaitCalib
+%% Logic Connections
+    Start --> Init --> CheckRecovery
 
-    %% Styling
-    classDef state fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef decision fill:#ff9,stroke:#333,stroke-width:2px;
-    
-    class StateWelcome,StateLora,StateMenu,StateSetPeriod,StateWaitCalib,StateCalib,StateDispense,StateFault state;
-    class CheckPowerOff,CheckSuccess,RetryCheck,LoopCheck decision;
+%% Recovery Mode Logic (Power-off or Task Incomplete)
+    CheckRecovery -- Yes (Cold Boot / Task Incomplete) --> StateWaitCalib
+CheckRecovery -- No (Normal Boot / Warm Reset) --> StateWelcome
+
+%% Mode Selection
+StateWelcome -- Mode: With LoRa --> StateLora
+StateWelcome -- Mode: Offline --> StateMenu
+
+StateLora -- Success/Fail/Timeout --> StateMenu
+
+%% Menu Navigation
+StateMenu -- Select: Set Dose --> StateSetPeriod
+StateSetPeriod -- Confirm --> StateMenu
+
+StateMenu -- Select: Get Pills --> StateWaitCalib
+
+%% Calibration Logic
+StateWaitCalib -- Recovery Mode (Auto) --> StateCalib
+StateWaitCalib -- Normal Mode (User Press) --> StateCalib
+
+StateCalib -- Recovery Mode (Auto) --> StateDispense
+StateCalib -- Normal Mode (User Press) --> StateDispense
+
+%% Dispensing Loop
+StateDispense --> CheckSuccess
+
+CheckSuccess -- Yes --> LoopCheck
+CheckSuccess -- No --> RetryCheck
+
+%% Retry Mechanism
+RetryCheck -- No (Retry) --> StateDispense
+RetryCheck -- Yes (Fault) --> StateFault
+
+%% Loop Continuation
+LoopCheck -- No (Next Pill) --> StateDispense
+LoopCheck -- Yes (Task Finished) --> StateMenu
+
+%% Fault Recovery (Resume Logic)
+StateFault -- User Resumes --> ResumeAction
+ResumeAction -- Set Recovery Flag --> StateCalib
+
+%% Styling
+classDef state fill:#f9f,stroke:#333,stroke-width:2px;
+classDef decision fill:#ff9,stroke:#333,stroke-width:2px;
+
+class StateWelcome,StateLora,StateMenu,StateSetPeriod,StateWaitCalib,StateCalib,StateDispense,StateFault state;
+class CheckRecovery,CheckSuccess,RetryCheck,LoopCheck decision;
 ```
 
 ## ⚠️ Important Notes

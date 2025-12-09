@@ -12,12 +12,12 @@
 //default values for dispenser state
 static bool is_calibrated = false;
 static float step_per_revolution = 4096.0f;
-static int max_recovery_step = 4096;
 static uint8_t pill_dispensed_count = 0;
 static uint8_t pill_treatment_period = 7;
 static bool motor_running_at_boot = false;
 
 //helper functions to change states in eeprom
+// and load states from eeprom
 static void state_from_globals(DispenserState *s, uint8_t motor_status) {
     memset(s, 0, sizeof(*s));
     s->step_per_revolution   = step_per_revolution;
@@ -33,6 +33,7 @@ static void globals_from_state(const DispenserState *s) {
     pill_treatment_period= s->pill_treatment_period;
 }
 
+//find falling edge(align with opening)
 void move_to_falling_edge(int direction) {
     if (opto_fork_sensor_read() == 0) {
         while (opto_fork_sensor_read() == 0) {
@@ -46,6 +47,8 @@ void move_to_falling_edge(int direction) {
         sleep_ms(1);
     }
 }
+
+// align exactly to the hole
 static int measure_gap_width(int direction, int max_steps) {
     int gap_width = 0;
     while (opto_fork_sensor_read() == 0 && gap_width < max_steps) {
@@ -67,6 +70,8 @@ static void move_to_center_from_edge(int direction, int gap_width) {
 static bool is_dispenser_empty() {
     return pill_dispensed_count >= pill_treatment_period;
 }
+
+
 bool is_pill_dropped() {
     uint64_t start_time = time_us_64() / 1000;
     while (time_us_64() / 1000 - start_time < PILL_FALL_TIMEOUT_MS) {
@@ -77,6 +82,7 @@ bool is_pill_dropped() {
     }
     return false;
 }
+
 bool is_calibrated_dispenser() {
     return is_calibrated;
 }
@@ -88,7 +94,6 @@ void dispenser_init() {
     if (load_dispenser_state_from_eeprom(&old_state)) {
         globals_from_state(&old_state);
 
-        //printf("Welcome back. Loaded previous settings.\n");
         printf("Calibrated: %d, Dispensed: %d/%d, Motor status: %d\n",is_calibrated, pill_dispensed_count, pill_treatment_period,
                old_state.motor_status);
 
@@ -97,28 +102,27 @@ void dispenser_init() {
                 old_state.motor_status);
         log_write_message(log_message);
 
+        //  modify the motor_status flag (power off when turning)
         if (old_state.motor_status == 1) {
             motor_running_at_boot = true;
-            //lora_send_message("BOOT:POWEROFF_DETECTED");
         } else {
             motor_running_at_boot = false;
-            //lora_send_message("BOOT:NORMAL");
         }
     } else {
+        // totally new machine or without any eeprom state.
         motor_running_at_boot = false;
         is_calibrated = false;
         step_per_revolution = 4096.0f;
         pill_dispensed_count = 0;
         pill_treatment_period = 7;
 
-        //printf("Welcome. No previous settings found.\n");
         log_write_message("System Boot: No previous settings found.");
         lora_send_message("BOOT:NEW");
     }
 }
 
 void dispenser_calibration() {
-    int direction = DEFAULT_DISPENSER_ROTATED_DIRECTION;
+    int direction = DEFAULT_DISPENSER_ROTATED_DIRECTION; //clockwise
     printf("Starting calibration...\n");
 
     move_to_falling_edge(direction);
@@ -188,7 +192,6 @@ bool do_dispense_single_round() {
 
     if (is_pill_dropped()) {
         pill_dispensed_count++;
-        //printf("✅ Dispensed %d/%d.\n", pill_dispensed_count, pill_treatment_period);
 
         char log_message[MAX_MESSAGE_LENGTH];
         sprintf(log_message, "OK: %d/%d",pill_dispensed_count, pill_treatment_period);
@@ -203,9 +206,6 @@ bool do_dispense_single_round() {
             pill_dispensed_count = 0;
             //printf("⚠️ Dispenser empty, please refill and recalibrate.\n");
             log_write_message("EMPTY");
-
-            //sleep_ms_with_lora(6000);
-            //lora_send_message("EMPTY");
         }
 
         DispenserState success_state;
@@ -214,7 +214,6 @@ bool do_dispense_single_round() {
 
         return true;
     } else {
-        //printf("❌ Dispense failed - no pill detected.\n");
         log_write_message("Dispense failed: no pill detected");
         lora_send_message("NOPILL");
 
@@ -268,6 +267,7 @@ void dispenser_recalibrate_from_poweroff() {
     log_write_message("Recovery from power-off successful");
 }
 
+// didn't use in main statemachine, just in case if I want a fully clean mode.
 void dispenser_reset() {
     //log_erase_all();
     DispenserState clean_state;
@@ -281,6 +281,7 @@ void dispenser_reset() {
     printf("Factory Reset Complete. Please Restart.\n");
 }
 
+// user could adjust the period and save to eeprom
 void dispenser_set_period(uint8_t period) {
     pill_treatment_period = period;
     DispenserState new_period_state;
@@ -289,6 +290,7 @@ void dispenser_set_period(uint8_t period) {
     printf("[Debug] New period set %d.\n",period);
 }
 
+// get new modified period from user and expose to other files
 uint8_t dispenser_get_period() {
     return pill_treatment_period;
 }
@@ -296,6 +298,7 @@ uint8_t dispenser_get_dispensed_count() {
     return pill_dispensed_count;
 }
 
+// mark if the motor is power off when turning.
 bool dispenser_was_motor_running_at_boot() {
     return motor_running_at_boot;
 }
