@@ -1,5 +1,5 @@
 #include "dispenser.h"
-#include <math.h>
+#include "statemachine.h"
 #include <stdio.h>
 #include "../config.h"
 #include <string.h>
@@ -202,6 +202,8 @@ bool do_dispense_single_round() {
             pill_dispensed_count = 0;
             //printf("⚠️ Dispenser empty, please refill and recalibrate.\n");
             log_write_message("EMPTY");
+
+            sleep_ms_with_lora(6000);
             lora_send_message("EMPTY");
         }
 

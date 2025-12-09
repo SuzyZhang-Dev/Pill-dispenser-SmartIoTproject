@@ -42,6 +42,7 @@ set(SOURCE_FILES
     src/drivers/iuart.h
         src/logic/statemachine.c
         src/logic/statemachine.h
+        src/drivers/appkey.h
 )
 
 # Tell CMake where to find the executable source file

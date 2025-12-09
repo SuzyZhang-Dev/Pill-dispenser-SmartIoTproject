@@ -41,7 +41,7 @@ static void change_state(AppState_t new_state) {
     oled_clear();
 }
 
-static void sleep_ms_with_lora(uint32_t ms) {
+void sleep_ms_with_lora(uint32_t ms) {
     uint32_t end_time = to_ms_since_boot(get_absolute_time()) + ms;
     while (to_ms_since_boot(get_absolute_time()) < end_time) {
         if (is_lora_enabled && lora_get_status() != LORA_STATUS_FAILED) {
@@ -340,6 +340,7 @@ void statemachine_loop(void) {
                         if (dispensed == total_pills_need -1) {
                             oled_show_string(0, 6, "Need Refill");
                         }
+                        // Doubt should give the pill first they enter or wait for one round first.
                         sleep_ms_with_lora(PILL_DISPENSE_INTERVAL);
                         oled_show_string(0, 6, "                ");
 
@@ -368,9 +369,11 @@ void statemachine_loop(void) {
                 oled_show_string(0, 4, "Please Refill");
                 oled_show_string(0, 6, "Press to Reset");
 
-
                 if (is_lora_enabled) {
+                    sleep_ms_with_lora(5000);
                     lora_send_message("ALARM:EMPTY");
+                    sleep_ms_with_lora(5000);
+
                 }
                 led_set_mode(LED_BLINKING);
                 leds_set_brightness(BRIGHTNESS_ERROR_OCCUR);
@@ -381,7 +384,9 @@ void statemachine_loop(void) {
                 led_set_mode(LED_ALL_OFF);
                 dispenser_reset();
                 if (is_lora_enabled) {
+                    sleep_ms_with_lora(3000);
                     lora_send_message("STATUS:RESET");
+                    sleep_ms_with_lora(3000);
                 }
                 change_state(STATE_MAIN_MENU);
             }

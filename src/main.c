@@ -22,8 +22,10 @@ static void system_init() {
     encoder_init();
     set_motor_pins();
     sensor_init();
-    dispenser_init();
+
     lora_init();
+    dispenser_init();
+
     statemachine_init();
     oled_init();
     oled_init_minimal();
@@ -38,7 +40,7 @@ int main() {
 
     while (true) {
         statemachine_loop();
-        //watchdog_update();
+        watchdog_update();
         sleep_ms(20);
     }
 
