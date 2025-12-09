@@ -26,6 +26,8 @@ AppState_t current_state = STATE_WELCOME;
 uint32_t state_enter_time = 0;
 int setting_period = DEFAULT_PERIOD;
 bool is_lora_enabled = true;
+static bool has_sent_boot_message = false;
+static bool is_power_loss_recovery = false;
 
 //if we use encoder, there is a conflict using encoder interrupt with callback.
 //set a whole callback handler for main logic
@@ -61,12 +63,15 @@ void statemachine_init(void) {
     // if user choose not to use it, it ends the procedure.
     // that makes users wait for shorter time.
     is_lora_enabled = true;
+    has_sent_boot_message = false;
 
     if (dispenser_was_motor_running_at_boot()) {
         printf("[Boot] Power-off recovery detected. Skipping menu.\n");
         current_state = STATE_WAIT_CALIBRATE;
+        is_power_loss_recovery = true;
     } else {
         current_state = STATE_WELCOME;
+        is_power_loss_recovery = false;
     }
 
     state_enter_time = to_ms_since_boot(get_absolute_time());
@@ -76,6 +81,20 @@ void statemachine_loop(void) {
     if (is_lora_enabled) {
         if (lora_get_status() != LORA_STATUS_FAILED) {
             lora_get_ready_to_join();
+        }
+
+        if (lora_get_status() == LORA_STATUS_JOINED && !has_sent_boot_message) {
+            bool send_success;
+            if (is_power_loss_recovery) {
+                send_success = lora_send_message("BOOT:POWEROFF_DETECTED");
+            } else {
+                send_success = lora_send_message("BOOT:NORMAL");
+            }
+
+            if (send_success) {
+                printf("[Statemachine] Boot message sent.\n");
+                has_sent_boot_message = true;
+            }
         }
     }
     led_blink_task();
@@ -234,7 +253,6 @@ void statemachine_loop(void) {
             if (is_state_changed) {
                 led_set_mode(LED_BLINKING);
                 if (is_calibrated_dispenser()) {
-                    // recovery from power off, or pill dispensed is less than setting period
                     if (dispenser_was_motor_running_at_boot()) {
                         oled_clear();
                         oled_show_string(0, 0, "[ POWER LOSS ]");
@@ -242,13 +260,54 @@ void statemachine_loop(void) {
                         oled_show_string(0, 4, "in 5 seconds...");
                         oled_show_string(0, 6, "Keep Hands Away");
 
-
                         for (int i = POWER_ON_WARNING_TIME/1000; i > 0; i--) {
                             char count_buf[16];
                             sprintf(count_buf, "in %d seconds...", i);
                             oled_show_string(0, 4, count_buf);
-                            led_blinking_error(5,100);
+
+                            leds_set_brightness(BRIGHTNESS_ERROR_OCCUR);
+                            for(int k=0; k<10; k++) {
+                                led_set_mode(LED_ALL_ON);
+                                sleep_ms_with_lora(100);
+                                led_set_mode(LED_ALL_OFF);
+                                sleep_ms_with_lora(100);
+                            }
                         }
+
+                        if (is_lora_enabled && !has_sent_boot_message) {
+                            oled_clear();
+                            oled_show_string(0, 0, "Wait Network...");
+                            oled_show_string(0, 2, "Sending Status");
+
+                            int wait_retries = 2000;
+                            while (wait_retries > 0) {
+                                LoraStatus_t status = lora_get_status();
+
+
+                                if (status == LORA_STATUS_JOINED) {
+                                    oled_show_string(0, 4, "Joined!       ");
+                                    sleep_ms_with_lora(1500);
+
+                                    if (lora_send_message("BOOT:POWEROFF_DETECTED")) {
+                                        has_sent_boot_message = true;
+                                        printf("[Statemachine] Boot message sent before recalib.\n");
+                                        oled_show_string(0, 6, "Sent OK       ");
+                                        sleep_ms_with_lora(1000);
+                                    }
+                                    break;
+                                }
+                                else if (status == LORA_STATUS_FAILED) {
+                                    oled_show_string(0, 4, "Join Failed   ");
+                                    sleep_ms_with_lora(1000);
+                                    break;
+                                }
+
+                                sleep_ms_with_lora(10);
+                                wait_retries--;
+                            }
+                        }
+
+                        leds_set_brightness(BRIGHTNESS_NORMAL);
                         change_state(STATE_CALIBRATE);
                         break;
                     }
@@ -257,7 +316,6 @@ void statemachine_loop(void) {
                         oled_show_string(0, 2, "Press to Align");
                     }
                 }
-
                 else {
                     oled_show_string(0, 0, "Init Calibrate");
                     oled_show_string(0, 2, "Press to Start");
@@ -326,11 +384,12 @@ void statemachine_loop(void) {
 
                 sprintf(buf,"PILL: %d/%d",success_pill_count,setting_period);
                 oled_show_string(0, 4, buf);
-                for (int i = success_pill_count; i < setting_period; i++) {
-                    bool result = do_dispense_single_round();
+                while (success_pill_count<total_pills_need) {
+
                     if (!is_calibrated_dispenser()) {
                         break;
                     }
+                    bool result = do_dispense_single_round();
                     if (result) {
                         success_pill_count++;
                         sprintf(buf, "PILL: %d/%d", success_pill_count, setting_period);
@@ -353,10 +412,17 @@ void statemachine_loop(void) {
                         led_blinking_error(5,200);
                         // we do this buz when power off, application automatically recover LoRa connection
                         sleep_ms_with_lora(PILL_DISPENSE_INTERVAL);
+                        oled_show_string(0, 6, "                ");
                     }
                 }
+
+                if (is_lora_enabled) {
+                    sleep_ms_with_lora(3000);
+                    lora_send_message("EMPTY");
+                }
+
                 oled_show_string(0, 4, "Finished!             ");
-                sleep_ms(2000);
+                sleep_ms(5000);
                 change_state(STATE_MAIN_MENU);
             }
             break;

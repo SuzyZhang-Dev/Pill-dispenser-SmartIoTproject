@@ -99,10 +99,10 @@ void dispenser_init() {
 
         if (old_state.motor_status == 1) {
             motor_running_at_boot = true;
-            lora_send_message("BOOT:POWEROFF_DETECTED");
+            //lora_send_message("BOOT:POWEROFF_DETECTED");
         } else {
             motor_running_at_boot = false;
-            lora_send_message("BOOT:NORMAL");
+            //lora_send_message("BOOT:NORMAL");
         }
     } else {
         motor_running_at_boot = false;
@@ -173,6 +173,7 @@ bool do_dispense_single_round() {
     DispenserState pre_state;
     state_from_globals(&pre_state, 1);
     save_dispenser_state_to_eeprom(&pre_state);
+    sleep_ms(50);
 
     sensor_reset_pill_detected();
     long steps_need = (long)(step_per_revolution / 8.0f + 0.5f);
@@ -203,8 +204,8 @@ bool do_dispense_single_round() {
             //printf("⚠️ Dispenser empty, please refill and recalibrate.\n");
             log_write_message("EMPTY");
 
-            sleep_ms_with_lora(6000);
-            lora_send_message("EMPTY");
+            //sleep_ms_with_lora(6000);
+            //lora_send_message("EMPTY");
         }
 
         DispenserState success_state;
